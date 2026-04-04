@@ -1,16 +1,11 @@
 import io
-import cv2
 from PIL import Image
 from anyio.streams import file
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.responses import StreamingResponse, JSONResponse
 import os
-import requests
 from dotenv import load_dotenv
 from openai import OpenAI
-import openai._files
-from pydantic import BaseModel
-import numpy as np
 import base64
 from SegmentationService import segment_car, segment_car_part, working_dir
 

@@ -2,8 +2,6 @@ import numpy as np
 import cv2
 import torch
 import os
-from dotenv import load_dotenv
-import base64
 
 from Utils import initialize_sam_model, initialize_yolo_model, apply_binary_mask_for_inpainting
 
