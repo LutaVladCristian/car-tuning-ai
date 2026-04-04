@@ -16,7 +16,7 @@ Two Python microservices. Clients talk only to `car-backend-ms`; the segmentatio
 Client (HTTP)
     │
     ▼
-car-backend-ms  (port 8001)   ← JWT auth, DB persistence, photo history
+car-backend-ms  (port 8001)   ← JWT auth, DB blob storage, photo history
     │
     ▼
 car-segmentation-ms  (port 8000)  ← ML inference (YOLO + SAM + OpenAI)
@@ -47,13 +47,13 @@ car-tuning-ai/
     ├── environment.yml            # Conda env for car-backend-ms (lightweight, no ML)
     ├── .env.example
     ├── alembic.ini + alembic/
-    ├── storage/                   # User photo files on disk (gitignored)
     └── app/
         ├── core/security.py       # bcrypt + JWT
-        ├── db/models/             # User, Photo ORM models
+        ├── db/models/             # User, Photo ORM models (images as DB blobs)
         ├── schemas/               # Pydantic I/O schemas
         ├── routers/               # auth, segmentation, photos
-        └── services/              # proxy_service, photo_service
+        └── services/
+            └── proxy_service.py  # httpx forwarding to segmentation MS
 ```
 
 ---
@@ -82,6 +82,7 @@ car-tuning-ai/
 | Auth | JWT (HS256) via `python-jose`, bcrypt via `passlib` |
 | ORM | SQLAlchemy 2.0 + Alembic migrations |
 | Database | PostgreSQL (prod) / SQLite (dev) |
+| Image storage | Binary blobs in DB (`LargeBinary` column) |
 | HTTP proxy | `httpx` async client |
 | Config | `pydantic-settings` from `.env` |
 
@@ -116,11 +117,11 @@ The backend env is **lightweight** — no PyTorch, YOLO, or SAM. Do not merge th
 |---|---|---|---|
 | POST | `/auth/register` | — | Create user account |
 | POST | `/auth/login` | — | Get JWT token |
-| POST | `/car-segmentation` | JWT | Proxy + save to DB |
-| POST | `/car-part-segmentation` | JWT | Proxy + save to DB |
-| POST | `/edit-photo` | JWT | Proxy + save to DB |
-| GET | `/photos` | JWT | List user's photo history |
-| GET | `/photos/{id}` | JWT | Download a photo |
+| POST | `/car-segmentation` | JWT | Proxy + store blobs in DB |
+| POST | `/car-part-segmentation` | JWT | Proxy + store blobs in DB |
+| POST | `/edit-photo` | JWT | Proxy + store original blob in DB |
+| GET | `/photos` | JWT | List user's photo history (metadata) |
+| GET | `/photos/{id}` | JWT | Stream photo from DB blob |
 | GET | `/health` | — | Liveness check |
 
 ---
@@ -128,12 +129,12 @@ The backend env is **lightweight** — no PyTorch, YOLO, or SAM. Do not merge th
 ## Image Processing Pipeline
 
 1. Client uploads binary image to `car-backend-ms`
-2. Backend saves original to `storage/{user_id}/{uuid}_original.{ext}`
-3. Proxies request to `car-segmentation-ms` via `httpx`
-4. Segmentation MS: YOLOv10 detects car → SAM generates mask → returns RGBA PNG
-5. Backend saves result to `storage/{user_id}/{uuid}_result.png`
-6. Backend inserts `Photo` row in DB with paths + params
-7. Result returned to caller
+2. Backend proxies request to `car-segmentation-ms` via `httpx`
+3. Segmentation MS: YOLOv10 detects car → SAM generates mask → returns RGBA PNG
+4. Backend stores `original_image` and `result_image` as binary blobs in the `photos` DB table
+5. Result streamed back to caller
+
+No files are written to disk by the backend service.
 
 ---
 
@@ -180,7 +181,7 @@ alembic upgrade head
 ## Known Issues / Limitations
 
 - **Hardcoded Windows paths** in `car-segmentation-ms/SegmentationService.py` (`working_dir = "C:/Users/..."`) — should be replaced with env var.
-- `/edit-photo` result is saved to the segmentation MS's own disk, not proxied back as a file.
+- `/edit-photo` result is processed by OpenAI inside the segmentation MS; only the original image blob is stored in the backend DB for this operation.
 - Models are large binary files — gitignored, must be obtained separately.
 - No frontend yet.
 

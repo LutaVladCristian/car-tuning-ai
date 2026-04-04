@@ -1,5 +1,7 @@
+from io import BytesIO
+
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.db.models.photo import Photo
@@ -31,7 +33,7 @@ async def download_photo(
     photo_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> FileResponse:
+) -> StreamingResponse:
     photo = (
         db.query(Photo)
         .filter(Photo.id == photo_id, Photo.user_id == current_user.id)
@@ -40,5 +42,5 @@ async def download_photo(
     if photo is None:
         raise HTTPException(status_code=404, detail="Photo not found")
 
-    file_path = photo.result_file_path or photo.original_file_path
-    return FileResponse(file_path, media_type="image/png")
+    image_bytes = photo.result_image or photo.original_image
+    return StreamingResponse(BytesIO(image_bytes), media_type="image/png")

@@ -37,7 +37,6 @@ car-segmentation-ms/output
 car-segmentation-ms/model
 
 # car-backend-ms
-car-backend-ms/storage
 car-backend-ms/car_backend.db
 car-backend-ms/.env
 !car-backend-ms/.env.example

@@ -2,7 +2,7 @@ import enum
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, JSON, String, func
+from sqlalchemy import DateTime, Enum, ForeignKey, Integer, JSON, LargeBinary, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -25,8 +25,8 @@ class Photo(Base):
         Integer, ForeignKey("users.id"), nullable=False, index=True
     )
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
-    original_file_path: Mapped[str] = mapped_column(String(1024), nullable=False)
-    result_file_path: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
+    original_image: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    result_image: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
     operation_type: Mapped[OperationType] = mapped_column(
         Enum(OperationType), nullable=False
     )

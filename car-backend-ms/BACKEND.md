@@ -5,7 +5,7 @@
 `car-backend-ms` is the authenticated API gateway that sits in front of `car-segmentation-ms`. It adds:
 
 - **JWT-based user authentication** (register / login)
-- **PostgreSQL persistence** — every uploaded image and its processed result are stored on disk and recorded in the database
+- **PostgreSQL persistence** — every uploaded image and its processed result are stored as binary blobs directly in the database
 - **Photo history API** — users can list and download their past operations
 - **Proxy forwarding** — transparently forwards image processing requests to the segmentation MS and returns the results to the caller
 
@@ -21,8 +21,7 @@ Client (HTTP)
     ▼
 car-backend-ms  (port 8001)
     │  JWT auth on every protected route
-    │  Saves original + result to disk
-    │  Records metadata in PostgreSQL
+    │  Stores original + result as blobs in PostgreSQL
     │
     ├──► car-segmentation-ms  (port 8000)
     │        YOLOv10 + SAM + YOLOv11 + OpenAI
@@ -36,7 +35,7 @@ car-backend-ms  (port 8001)
 
 ```
 car-backend-ms/
-├── main.py                         # FastAPI app factory, router mounts, startup hook
+├── main.py                         # FastAPI app factory + router mounts
 ├── config.py                       # pydantic-settings — reads .env into typed Settings
 ├── dependencies.py                 # Shared FastAPI deps: get_db(), get_current_user()
 ├── environment.yml                 # Conda environment (Python 3.9, no ML deps)
@@ -47,10 +46,6 @@ car-backend-ms/
 │   ├── env.py                      # Reads DATABASE_URL from config; registers all models
 │   ├── script.py.mako              # Migration file template
 │   └── versions/                   # Auto-generated migration scripts
-├── storage/                        # Photo files on disk — gitignored
-│   └── {user_id}/
-│       ├── {uuid}_original.{ext}
-│       └── {uuid}_result.png
 └── app/
     ├── core/
     │   └── security.py             # bcrypt password hashing + HS256 JWT encode/decode
@@ -68,8 +63,7 @@ car-backend-ms/
     │   ├── segmentation.py         # POST /car-segmentation, /car-part-segmentation, /edit-photo
     │   └── photos.py               # GET /photos, GET /photos/{id}
     └── services/
-        ├── proxy_service.py        # httpx async forwarding to segmentation MS
-        └── photo_service.py        # Disk I/O helpers (path generation, file save)
+        └── proxy_service.py        # httpx async forwarding to segmentation MS
 ```
 
 ---
@@ -93,11 +87,13 @@ car-backend-ms/
 | id | INTEGER | PK, auto-increment |
 | user_id | INTEGER | FK → users.id, NOT NULL, indexed |
 | original_filename | VARCHAR(255) | NOT NULL |
-| original_file_path | VARCHAR(1024) | NOT NULL |
-| result_file_path | VARCHAR(1024) | nullable (null for edit_photo) |
+| original_image | BYTEA / BLOB | NOT NULL — raw bytes of the uploaded image |
+| result_image | BYTEA / BLOB | nullable — raw bytes of the processed result (null for `edit_photo`) |
 | operation_type | ENUM | `car_segmentation` / `car_part_segmentation` / `edit_photo` |
 | operation_params | JSON | nullable — full param dict (e.g. `{"inverse": true}`) |
 | created_at | TIMESTAMPTZ | server default NOW() |
+
+Images are stored as binary blobs — no files are written to disk.
 
 ---
 
@@ -131,20 +127,18 @@ JWT payload: `{"sub": "<username>", "exp": <unix timestamp>}`. Expiry configured
 
 Each segmentation endpoint:
 1. Reads uploaded bytes
-2. Saves original → `storage/{user_id}/{uuid}_original.{ext}`
-3. Forwards to segmentation MS via `httpx` (timeout: 120 s for segmentation, 180 s for edit)
-4. Saves result PNG → `storage/{user_id}/{uuid}_result.png`
-5. Inserts `Photo` row with paths + params
-6. Returns result to caller
+2. Forwards to segmentation MS via `httpx` (timeout: 120 s for segmentation, 180 s for edit)
+3. Inserts `Photo` row — `original_image` and `result_image` stored as binary blobs in DB
+4. Returns result to caller
 
 ### Photos
 
 | Method | Path | Auth | Query params | Response |
 |---|---|---|---|---|
 | GET | `/photos` | JWT | `skip=0`, `limit=20` | `200 PhotoListResponse` |
-| GET | `/photos/{photo_id}` | JWT | — | `200` PNG `FileResponse` |
+| GET | `/photos/{photo_id}` | JWT | — | `200` PNG `StreamingResponse` |
 
-`GET /photos/{photo_id}` always filters by `user_id` — users cannot access each other's photos.
+`GET /photos/{photo_id}` always filters by `user_id` — users cannot access each other's photos. Returns `result_image` if available, otherwise `original_image`.
 
 ### Meta
 
@@ -169,7 +163,6 @@ JWT_SECRET_KEY=<random string, 32+ chars>
 JWT_EXPIRE_MINUTES=60
 
 SEGMENTATION_MS_URL=http://localhost:8000
-STORAGE_BASE_PATH=./storage
 
 APP_HOST=0.0.0.0
 APP_PORT=8001
@@ -197,13 +190,13 @@ conda activate car-backend-ms
 
 # 2. Configure secrets
 cp .env.example .env
-# edit .env
+# edit .env — set DATABASE_URL and JWT_SECRET_KEY
 
 # 3. Generate and apply DB migrations
 alembic revision --autogenerate -m "create users and photos tables"
 alembic upgrade head
 
-# 4. Start the server (segmentation MS must be on port 8000)
+# 4. Start the server (segmentation MS must be running on port 8000)
 uvicorn main:app --reload --port 8001
 ```
 
@@ -250,17 +243,13 @@ curl -X POST http://localhost:8001/car-segmentation \
 # List history
 curl http://localhost:8001/photos -H "Authorization: Bearer $TOKEN"
 
-# Download a photo
+# Download a photo (served from DB blob)
 curl http://localhost:8001/photos/1 \
   -H "Authorization: Bearer $TOKEN" --output downloaded.png
 
 # Verify rejection without token
 curl http://localhost:8001/photos
 # → 401 {"detail":"Not authenticated"}
-
-# Check disk storage
-ls storage/1/
-# → <uuid>_original.jpg  <uuid>_result.png
 ```
 
 ---
@@ -269,9 +258,9 @@ ls storage/1/
 
 | Decision | Reason |
 |---|---|
+| Blob storage in DB (not disk) | No filesystem dependency; photos travel with the DB; simpler deployment |
 | Separate Conda env (no ML deps) | Keeps backend MS lightweight; ML deps live only in `sam-microservice` |
-| UUID-prefixed filenames | Avoids chicken-and-egg between DB ID and file path on disk |
 | JSON login body (not OAuth2 form) | Consistent API surface — all structured endpoints use JSON |
-| `result_file_path` nullable for `edit_photo` | Downstream MS saves result to its own disk; backend cannot intercept the file |
+| `result_image` nullable for `edit_photo` | Downstream MS processes via OpenAI and returns only a success JSON; no binary result to capture |
 | Ownership filter on `GET /photos/{id}` | Prevents ID-guessing attacks across users |
 | SQLite auto-detect in `session.py` | Same codebase works for local dev (SQLite) and production (PostgreSQL) |
