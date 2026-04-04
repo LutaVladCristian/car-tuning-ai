@@ -31,6 +31,6 @@ dist-ssr
 __pycache__/
 
 # Project specific
-car-segmentation-ms/app/input
-car-segmentation-ms/app/output
-car-segmentation-ms/app/model
+car-segmentation-ms/input
+car-segmentation-ms/output
+car-segmentation-ms/model

@@ -5,11 +5,11 @@ import os
 from dotenv import load_dotenv
 import base64
 
-from app.Utils import initialize_sam_model, initialize_yolo_model, apply_binary_mask_for_inpainting
+from Utils import initialize_sam_model, initialize_yolo_model, apply_binary_mask_for_inpainting
 
 
 # Define a working directory
-working_dir = "C:/Users/vlad_cristian.luta/PycharmProjects/car-tuning-ai/car-segmentation-ms/app"
+working_dir = "C:/Users/vlad_cristian.luta/PycharmProjects/car-tuning-ai/car-segmentation-ms"
 
 # Define device
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
