@@ -1,0 +1,214 @@
+Car Customization
+│
+├── Exterior Modifications
+│   │
+│   ├── Change Car Color
+│   │   ├── Solid Colors
+│   │   │   ├── Basic (Black, White, Red, Blue)
+│   │   │   ├── Premium (Racing Green, Sunset Orange, Midnight Purple)
+│   │   │   └── Matte Finish Options
+│   │   │
+│   │   ├── Metallic Colors
+│   │   │   ├── Silver Metallic
+│   │   │   ├── Pearl White
+│   │   │   └── Gunmetal Grey
+│   │   │
+│   │   ├── Custom Paint Jobs
+│   │   │   ├── Two-Tone Combinations
+│   │   │   ├── Gradient Effects
+│   │   │   └── Racing Stripes
+│   │   │
+│   │   └── Special Finishes
+│   │       ├── Chrome Wrap
+│   │       ├── Color-Shifting Paint
+│   │       └── Carbon Fiber Accents
+│   │
+│   ├── Add/Change Spoiler
+│   │   ├── Style Category
+│   │   │   ├── Low-Profile Lip Spoilers
+│   │   │   ├── Mid-Size Sport Spoilers
+│   │   │   ├── High Performance Wings
+│   │   │   └── GT Racing Spoilers
+│   │   │
+│   │   └── Material Appearance
+│   │       ├── Plastic Look
+│   │       ├── Carbon Fiber Look
+│   │       └── Painted Match with Body
+│   │
+│   ├── Change Rims/Wheels
+│   │   ├── Size Options
+│   │   │   ├── 17-inch
+│   │   │   ├── 18-inch
+│   │   │   ├── 19-inch
+│   │   │   └── 20-inch+
+│   │   │
+│   │   ├── Design Styles
+│   │   │   ├── Multi-Spoke
+│   │   │   ├── 5-Spoke Star
+│   │   │   ├── Mesh Design
+│   │   │   ├── Split 5-Spoke
+│   │   │   └── Deep Dish
+│   │   │
+│   │   └── Finish Options
+│   │       ├── Chrome
+│   │       ├── Matte Black
+│   │       ├── Machined Face
+│   │       ├── Bronze/Gold
+│   │       └── Colored Accents
+│   │
+│   ├── Body Kits & Modifications
+│   │   ├── Front Bumper Options
+│   │   │   ├── Sport Style
+│   │   │   ├── Aggressive Racing
+│   │   │   └── Luxury Design
+│   │   │
+│   │   ├── Side Skirts
+│   │   │   ├── Subtle Extension
+│   │   │   ├── Performance Style
+│   │   │   └── Ground Effect Design
+│   │   │
+│   │   ├── Rear Diffusers
+│   │   │   ├── Single Fin Design
+│   │   │   ├── Multi-Fin Racing
+│   │   │   └── Integrated Exhaust
+│   │   │
+│   │   ├── Fender Flares/Wide Body
+│   │   │   ├── Subtle Extensions
+│   │   │   ├── Bolt-On Look
+│   │   │   └── Full Wide Body Conversion
+│   │   │
+│   │   └── Hood Modifications
+│   │       ├── Vented Hood
+│   │       ├── Cowl Hood
+│   │       └── Carbon Fiber Hood
+│   │
+│   ├── Window Modifications
+│   │   ├── Tint Darkness Level
+│   │   │   ├── Light (70%)
+│   │   │   ├── Medium (50%)
+│   │   │   ├── Dark (35%)
+│   │   │   └── Limo (5%)
+│   │   │
+│   │   └── Tint Type
+│   │       ├── Standard Black
+│   │       ├── Smoke Grey
+│   │       └── Color Tint (Blue, Gold)
+│   │
+│   ├── Lighting Customization
+│   │   ├── Headlight Appearance
+│   │   │   ├── LED Style
+│   │   │   ├── Halo/Angel Eyes
+│   │   │   ├── Color-Changing RGB
+│   │   │   └── Smoked/Tinted
+│   │   │
+│   │   └── Taillight Appearance
+│   │       ├── LED Bar Style
+│   │       ├── Smoked/Tinted
+│   │       ├── Sequential Look
+│   │       └── Custom LED Pattern
+│   │
+│   ├── Graphics & Vinyl Wraps
+│   │   ├── Racing Stripes
+│   │   │   ├── Single Stripe
+│   │   │   ├── Dual Stripes
+│   │   │   └── Multi-Color Patterns
+│   │   │
+│   │   ├── Custom Graphics
+│   │   │   ├── Flames Design
+│   │   │   ├── Geometric Patterns
+│   │   │   ├── Sponsor-Style Logos
+│   │   │   └── Abstract Art
+│   │   │
+│   │   ├── Partial Wraps
+│   │   │   ├── Hood Only
+│   │   │   ├── Roof Wrap
+│   │   │   └── Side Panel Graphics
+│   │   │
+│   │   └── Special Effects
+│   │       ├── Matte/Satin Finish
+│   │       ├── Color Shift Appearance
+│   │       └── Textured Look (Carbon, Brushed)
+│   │
+│   └── Stance Modifications
+│       ├── Lowering Appearance
+│       │   ├── Mild Drop
+│       │   ├── Aggressive Low
+│       │   └── Slammed Look
+│       │
+│       └── Wheel Fitment
+│           ├── Flush with Fender
+│           ├── Slight Poke
+│           └── Aggressive Camber Look
+│
+├── Exterior Accessories
+│   │
+│   ├── Roof Additions
+│   │   ├── Roof Rack
+│   │   ├── Roof Basket
+│   │   └── Roof Scoop
+│   │
+│   ├── Additional Lighting
+│   │   ├── Light Bar
+│   │   ├── Rally Lights
+│   │   └── Underglow Effects
+│   │
+│   ├── Emblems & Badging
+│   │   ├── Custom Logo Replacements
+│   │   ├── Debadged Clean Look
+│   │   └── Illuminated Emblems
+│   │
+│   └── Antenna Options
+│       ├── Shorty Antenna
+│       ├── Sharkfin Style
+│       └── No Antenna (Clean Look)
+│
+└── Environmental Context
+    │
+    ├── Background Setting
+    │   ├── Urban City
+    │   ├── Mountain Road
+    │   ├── Race Track
+    │   ├── Beach Sunset
+    │   └── Industrial Zone
+    │
+    ├── Time of Day
+    │   ├── Daylight
+    │   ├── Sunset/Golden Hour
+    │   ├── Night City
+    │   └── Dawn
+    │
+    ├── Weather Effects
+    │   ├── Clear Sky
+    │   ├── Rainy/Wet Ground
+    │   ├── Light Snow
+    │   └── Foggy Atmosphere
+    │
+    └── Photography Style
+        ├── Action Shot (Motion Blur)
+        ├── Static Display
+        ├── Three-Quarter View
+        └── Dramatic Angle
+
+
+
+
+MVP:
+Change Car Color:
+input:
+poza cu masina
+
+output:
+poza cu masina cu culoarea schimbata
+
+proces: 
+creare masca, generare masina (95% la fel cu originala) culoare diferita
+
+Add/Change Spoiler:
+input:
+poza cu masina + masca facuta de utilizator
+
+Change Rims/Wheels
+input:
+poza cu masina + masca facuta de utilizator
+
+Background Setting

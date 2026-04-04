@@ -1,0 +1,36 @@
+# Logs
+logs
+*.log
+*-debug.log*
+*-error.log*
+
+# Dependencies
+**/node_modules
+
+# Build outputs
+dist
+dist-ssr
+*.local
+
+# Editor and IDE files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Environment variables
+.env*
+*/.env*
+
+# Python
+__pycache__/
+
+# Project specific
+car-segmentation-ms/app/input
+car-segmentation-ms/app/output
+car-segmentation-ms/app/model

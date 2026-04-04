@@ -1,0 +1,28 @@
+name: sam-microservice
+channels:
+  - nvidia
+  - pytorch
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.9
+  - pip
+  - pytorch=2.2.0
+  - torchvision
+  - torchaudio
+  - numpy<2  # Downgrade to ensure compatibility with torch and compiled modules
+  - pip:
+      - opencv-python
+      - fastapi
+      - uvicorn
+      - git+https://github.com/facebookresearch/segment-anything.git
+      - python-multipart
+      - pillow
+      - yolov5
+      - ultralytics
+      - python-dotenv
+      - openai
+      - requests
+      - chardet
+      - charset_normalizer
