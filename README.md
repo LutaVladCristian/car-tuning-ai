@@ -1,20 +1,66 @@
-### You need to have anaconda installed to run this code.
-https://www.anaconda.com/
+# Car Tuning AI — Segmentation Microservice
 
-### You can create a conda environment with the following command:
+> Upload a car photo, isolate any part, and let AI swap backgrounds or apply edits — all via a simple REST API.
+
+---
+
+## What It Does
+
+| Endpoint | Description |
+|---|---|
+| `POST /car-segmentation` | Isolate the full car from the background |
+| `POST /car-part-segmentation` | Isolate a specific car part by ID |
+| `POST /edit-photo` | Replace the background using OpenAI image editing |
+
+Powered by **YOLOv11** for part detection, **SAM (Segment Anything Model)** for masking, and **GPT Image** for AI-generated edits.
+
+---
+
+## Quick Start
+
+**Prerequisites:** [Anaconda](https://www.anaconda.com/) must be installed.
+
+```bash
+# 1. Navigate to the microservice folder
 cd car-segmentation-ms
+
+# 2. Create and activate the environment
 conda env create -f environment.yml
 conda activate sam-microservice
-uvicorn app.server:app --reload
 
-### To remove virtual env: 
+# 3. Start the server
+uvicorn app.server:app --reload
+```
+
+The API will be live at `http://127.0.0.1:8000`.
+
+Explore and test all endpoints interactively via **Swagger UI**: `http://127.0.0.1:8000/docs`
+
+---
+
+## Environment Setup
+
+Create a `.env` file inside `car-segmentation-ms/` with your OpenAI key:
+
+```
+OPENAI_API_KEY=your-key-here
+```
+
+---
+
+## Teardown & Troubleshooting
+
+```bash
+# Remove the conda environment
 conda remove --name sam-microservice --all
 
-### Just in need
+# If conda can't find the defaults channel
 conda config --add channels defaults
+```
 
-### You can test the endpoint using Swagger UI:
-Go to: http://127.0.0.1:8000/docs
+---
 
-### For Yolo11 documentation please refer:
-https://docs.ultralytics.com/datasets/segment/carparts-seg/#dataset-yaml
+## References
+
+- [YOLOv11 / Ultralytics Car Parts Dataset](https://docs.ultralytics.com/datasets/segment/carparts-seg/#dataset-yaml)
+- [Segment Anything Model (SAM)](https://github.com/facebookresearch/segment-anything)
