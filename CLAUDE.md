@@ -2,35 +2,65 @@
 
 ## Project Overview
 
-An AI-powered car image manipulation REST API. The system allows users to upload car photos, isolate the car or specific parts (wheels, lights, etc.), and apply AI-driven edits (background replacement, color changes, etc.) via HTTP endpoints.
+An AI-powered car image manipulation platform. Users upload car photos, isolate the car or specific parts (wheels, lights, etc.), and apply AI-driven edits (background replacement, color changes, etc.) via REST APIs.
 
-**Current stage:** MVP — single microservice, no frontend yet.
+**Current stage:** Two-service backend — segmentation MS + authenticated backend MS. No frontend yet.
 
 ---
 
 ## Architecture
 
-Single microservice built in Python. No inter-service communication.
+Two Python microservices. Clients talk only to `car-backend-ms`; the segmentation MS is an internal service.
+
+```
+Client (HTTP)
+    │
+    ▼
+car-backend-ms  (port 8001)   ← JWT auth, DB persistence, photo history
+    │
+    ▼
+car-segmentation-ms  (port 8000)  ← ML inference (YOLO + SAM + OpenAI)
+    │
+    ▼
+PostgreSQL / SQLite
+```
 
 ```
 car-tuning-ai/
 ├── CLAUDE.md
 ├── README.md
-├── environment.yml                 # Conda environment (Python 3.9)
-├── .env                            # OPENAI_API_KEY, WORKING_DIR
+├── .env                            # OPENAI_API_KEY, WORKING_DIR (for segmentation MS)
+├── environment.yml                 # Conda env for car-segmentation-ms (sam-microservice)
 ├── user_flow_decision_tree.txt    # Product feature planning document
-└── car-segmentation-ms/           # The only microservice
-    ├── server.py                  # FastAPI app + endpoint definitions
-    ├── SegmentationService.py     # Core CV logic (YOLO + SAM)
-    ├── Utils.py                   # Model init + mask utilities
-    ├── model/                     # Downloaded model weights (gitignored)
-    ├── input/                     # Test images (gitignored)
-    └── output/                    # Generated outputs (gitignored)
+├── car-segmentation-ms/           # ML inference microservice (internal, port 8000)
+│   ├── server.py                  # FastAPI app + endpoint definitions
+│   ├── SegmentationService.py     # Core CV logic (YOLO + SAM)
+│   ├── Utils.py                   # Model init + mask utilities
+│   ├── model/                     # Downloaded model weights (gitignored)
+│   ├── input/                     # Test images (gitignored)
+│   └── output/                    # Generated outputs (gitignored)
+└── car-backend-ms/                # Auth + persistence gateway (public-facing, port 8001)
+    ├── BACKEND.md                 # Full backend documentation
+    ├── main.py
+    ├── config.py
+    ├── dependencies.py
+    ├── environment.yml            # Conda env for car-backend-ms (lightweight, no ML)
+    ├── .env.example
+    ├── alembic.ini + alembic/
+    ├── storage/                   # User photo files on disk (gitignored)
+    └── app/
+        ├── core/security.py       # bcrypt + JWT
+        ├── db/models/             # User, Photo ORM models
+        ├── schemas/               # Pydantic I/O schemas
+        ├── routers/               # auth, segmentation, photos
+        └── services/              # proxy_service, photo_service
 ```
 
 ---
 
 ## Tech Stack
+
+### car-segmentation-ms (Conda env: `sam-microservice`)
 
 | Layer | Technology |
 |---|---|
@@ -41,68 +71,118 @@ car-tuning-ai/
 | Mask generation | SAM ViT-Base (`sam_vit_b_01ec64.pth`) |
 | Image I/O | OpenCV, Pillow, NumPy |
 | AI editing | OpenAI API (`gpt-image-1`) |
-| Environment | Conda (`sam-microservice`) |
 | GPU | PyTorch CUDA (auto-detects GPU/CPU) |
+
+### car-backend-ms (Conda env: `car-backend-ms`)
+
+| Layer | Technology |
+|---|---|
+| Language | Python 3.9 |
+| Web framework | FastAPI + Uvicorn |
+| Auth | JWT (HS256) via `python-jose`, bcrypt via `passlib` |
+| ORM | SQLAlchemy 2.0 + Alembic migrations |
+| Database | PostgreSQL (prod) / SQLite (dev) |
+| HTTP proxy | `httpx` async client |
+| Config | `pydantic-settings` from `.env` |
 
 ---
 
-## REST API Endpoints
+## Conda Environments
+
+Each service has its own `environment.yml` and Conda env:
+
+| Service | Env name | `environment.yml` location |
+|---|---|---|
+| `car-segmentation-ms` | `sam-microservice` | `environment.yml` (repo root) |
+| `car-backend-ms` | `car-backend-ms` | `car-backend-ms/environment.yml` |
+
+The backend env is **lightweight** — no PyTorch, YOLO, or SAM. Do not merge them.
+
+---
+
+## REST API
+
+### car-segmentation-ms (internal — port 8000, no auth)
 
 | Method | Path | Description |
 |---|---|---|
-| POST | `/car-segmentation` | Isolate full car from background |
-| POST | `/car-part-segmentation` | Isolate a specific car part by class ID |
-| POST | `/edit-photo` | Replace/edit background using OpenAI image API |
-| GET | `/docs` | Swagger UI |
+| POST | `/car-segmentation` | Isolate full car from background → PNG |
+| POST | `/car-part-segmentation` | Isolate a specific car part by class ID → PNG |
+| POST | `/edit-photo` | Replace/edit background using OpenAI → JSON |
 
-All image endpoints accept `multipart/form-data` and return PNG binary streams (except `/edit-photo` which returns JSON with base64).
+### car-backend-ms (public — port 8001, JWT protected)
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/auth/register` | — | Create user account |
+| POST | `/auth/login` | — | Get JWT token |
+| POST | `/car-segmentation` | JWT | Proxy + save to DB |
+| POST | `/car-part-segmentation` | JWT | Proxy + save to DB |
+| POST | `/edit-photo` | JWT | Proxy + save to DB |
+| GET | `/photos` | JWT | List user's photo history |
+| GET | `/photos/{id}` | JWT | Download a photo |
+| GET | `/health` | — | Liveness check |
 
 ---
 
 ## Image Processing Pipeline
 
-1. Client uploads binary image
-2. YOLOv10 detects car bounding box (class 2, confidence ≥ 0.75)
-3. SAM uses bounding box to generate precise binary mask
-4. Mask is normalized (0–255 uint8), optionally inverted
-5. Gaussian blur applied (5×5 kernel, σ=10)
-6. Alpha channel added → output as RGBA PNG
-
-For part segmentation, YOLOv11 seg replaces step 2–3, targeting a `target_class_id`.
+1. Client uploads binary image to `car-backend-ms`
+2. Backend saves original to `storage/{user_id}/{uuid}_original.{ext}`
+3. Proxies request to `car-segmentation-ms` via `httpx`
+4. Segmentation MS: YOLOv10 detects car → SAM generates mask → returns RGBA PNG
+5. Backend saves result to `storage/{user_id}/{uuid}_result.png`
+6. Backend inserts `Photo` row in DB with paths + params
+7. Result returned to caller
 
 ---
 
-## Environment Setup
+## Running Both Services
 
+**Terminal 1 — segmentation MS (port 8000):**
 ```bash
-conda env create -f environment.yml
 conda activate sam-microservice
 cd car-segmentation-ms
-uvicorn server:app --reload
+uvicorn server:app --reload --port 8000
 ```
 
-Server runs at `http://localhost:8000`.
-
-Models must be manually downloaded and placed in `car-segmentation-ms/model/`:
-- `sam_vit_b_01ec64.pth`
-- `yolov10n.pt`
-- `yolov11seg.pt`
-
-`.env` must define:
+**Terminal 2 — backend MS (port 8001):**
+```bash
+conda activate car-backend-ms
+cd car-backend-ms
+uvicorn main:app --reload --port 8001
 ```
-OPENAI_API_KEY=sk-proj-...
-WORKING_DIR=<absolute path to car-segmentation-ms>
+
+---
+
+## First-Time Setup
+
+### car-segmentation-ms
+```bash
+conda env create -f environment.yml      # root-level environment.yml
+conda activate sam-microservice
+# Download models into car-segmentation-ms/model/
+# Fill in .env (OPENAI_API_KEY, WORKING_DIR)
+```
+
+### car-backend-ms
+```bash
+conda env create -f car-backend-ms/environment.yml
+conda activate car-backend-ms
+cd car-backend-ms
+cp .env.example .env                     # fill in DATABASE_URL, JWT_SECRET_KEY
+alembic revision --autogenerate -m "init"
+alembic upgrade head
 ```
 
 ---
 
 ## Known Issues / Limitations
 
-- **Hardcoded Windows paths** in `SegmentationService.py` (`working_dir = "C:/Users/..."`) — needs to be replaced with env var or relative path resolution.
-- No authentication on any endpoint.
-- No database or state — fully stateless API.
-- `/edit-photo` depends on OpenAI API key and credits.
+- **Hardcoded Windows paths** in `car-segmentation-ms/SegmentationService.py` (`working_dir = "C:/Users/..."`) — should be replaced with env var.
+- `/edit-photo` result is saved to the segmentation MS's own disk, not proxied back as a file.
 - Models are large binary files — gitignored, must be obtained separately.
+- No frontend yet.
 
 ---
 
@@ -118,12 +198,14 @@ WORKING_DIR=<absolute path to car-segmentation-ms>
 ## Git Branches
 
 - `main` — stable base
-- `car-segmentation-ms` — active development branch for the segmentation microservice
+- `car-segmentation-ms` — active development branch
 
 ---
 
 ## Development Notes
 
-- Future microservices should follow the same FastAPI pattern and be added as sibling directories to `car-segmentation-ms/`.
-- Keep model weights out of git — use `model/` directory with `.gitignore`.
-- The `environment.yml` is the source of truth for dependencies — do not use plain `pip install` outside of it.
+- Always consult `car-backend-ms/BACKEND.md` for the full backend design rationale.
+- Add new microservices as sibling directories (`car-<name>-ms/`) with their own `environment.yml`.
+- Keep model weights out of git — use `model/` with `.gitignore`.
+- The `environment.yml` in each service directory is the source of truth for its dependencies — do not use plain `pip install` outside of it.
+- `car-backend-ms` env must stay ML-free — heavy deps belong only in `sam-microservice`.
