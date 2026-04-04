@@ -12,10 +12,10 @@ import openai._files
 from pydantic import BaseModel
 import numpy as np
 import base64
-from app.SegmentationService import segment_car, segment_car_part, working_dir
+from SegmentationService import segment_car, segment_car_part, working_dir
 
 # Constants
-ENV_FILE = 'C:/Users/vlad_cristian.luta/PycharmProjects/car-tuning-ai/car-segmentation-ms/.env'
+ENV_FILE = 'C:/Users/vlad_cristian.luta/PersonalProjects/car-tuning-ai/.env'
 
 # Initialize the FastAPI app
 app = FastAPI()

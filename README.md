@@ -7,7 +7,7 @@
 ## What It Does
 
 | Endpoint | Description |
-|---|---|
+| --- | --- |
 | `POST /car-segmentation` | Isolate the full car from the background |
 | `POST /car-part-segmentation` | Isolate a specific car part by ID |
 | `POST /edit-photo` | Replace the background using OpenAI image editing |
@@ -21,15 +21,12 @@ Powered by **YOLOv11** for part detection, **SAM (Segment Anything Model)** for 
 **Prerequisites:** [Anaconda](https://www.anaconda.com/) must be installed.
 
 ```bash
-# 1. Navigate to the microservice folder
-cd car-segmentation-ms
-
-# 2. Create and activate the environment
+# 1. Create and activate the environment
 conda env create -f environment.yml
 conda activate sam-microservice
 
-# 3. Start the server
-uvicorn app.server:app --reload
+# 2. Start the server
+uvicorn server:app --reload
 ```
 
 The API will be live at `http://127.0.0.1:8000`.
@@ -42,7 +39,7 @@ Explore and test all endpoints interactively via **Swagger UI**: `http://127.0.0
 
 Create a `.env` file inside `car-segmentation-ms/` with your OpenAI key:
 
-```
+```text
 OPENAI_API_KEY=your-key-here
 ```
 

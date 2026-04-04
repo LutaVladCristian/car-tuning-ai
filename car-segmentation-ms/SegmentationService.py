@@ -9,7 +9,7 @@ from Utils import initialize_sam_model, initialize_yolo_model, apply_binary_mask
 
 
 # Define a working directory
-working_dir = "C:/Users/vlad_cristian.luta/PycharmProjects/car-tuning-ai/car-segmentation-ms"
+working_dir = "C:/Users/vlad_cristian.luta/PersonalProjects/car-tuning-ai/car-segmentation-ms"
 
 # Define device
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
