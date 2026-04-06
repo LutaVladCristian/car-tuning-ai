@@ -14,6 +14,3 @@ export interface PhotoListResponse {
   total: number;
 }
 
-export interface EditPhotoResponse {
-  message: string;
-}

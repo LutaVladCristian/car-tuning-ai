@@ -109,13 +109,6 @@ export default function ResultDisplay({ status, resultPhotoId, error, onReset }:
         </div>
       )}
 
-      {!imgLoading && resultPhotoId && (
-        <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3 text-xs text-amber-300">
-          <strong>Note:</strong> This shows the original image (photo #{resultPhotoId}). The AI-generated
-          result is processed by OpenAI and not yet stored in the database — a known backend limitation.
-        </div>
-      )}
-
       {!imgLoading && !imgUrl && !resultPhotoId && (
         <div className="bg-green-500/10 border border-green-500/20 rounded-lg px-4 py-3 text-xs text-green-300">
           Edit submitted successfully. Check your photo history for the saved record.

@@ -1,42 +1,63 @@
-# Logs
-logs
+# =============================================================================
+# ENVIRONMENT & SECRETS
+# =============================================================================
+.env
+**/.env
+# Keep the template
+!.env.example
+
+# =============================================================================
+# PYTHON
+# =============================================================================
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+venv/
+.venv/
+
+# =============================================================================
+# NODE / FRONTEND
+# =============================================================================
+**/node_modules/
+car-frontend/dist/
+
+# =============================================================================
+# LOGS
+# =============================================================================
 *.log
 *-debug.log*
 *-error.log*
 
-# Dependencies
-**/node_modules
-
-# Build outputs
-dist
-dist-ssr
-*.local
-
-# Editor and IDE files
-.vscode
-.claude
+# =============================================================================
+# EDITOR & OS
+# =============================================================================
+.vscode/
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
+.claude/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+Thumbs.db
 
-# Environment variables
-.env*
-*/.env*
-
-# Python
-__pycache__/
-
-# Project specific
-car-segmentation-ms/input
-car-segmentation-ms/output
-car-segmentation-ms/model
-
-# car-backend-ms
-car-backend-ms/car_backend.db
-car-backend-ms/.env
-!car-backend-ms/.env.example
+# =============================================================================
+# PROJECT-SPECIFIC
+# =============================================================================
+# ML model weights (large binaries — obtain separately)
+car-segmentation-ms/model/
+# Test data
+car-segmentation-ms/input/
+car-segmentation-ms/output/
+# SQLite dev database
+car-backend-ms/*.db
+# Frontend production build
+car-frontend/dist/

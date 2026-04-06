@@ -1,22 +1,22 @@
 import { apiClient } from './client';
-import type { EditPhotoResponse } from '../types/photo';
 
 export async function editPhoto(
   file: File | Blob,
   prompt: string,
   editCar: boolean,
   size = '1024x1536'
-): Promise<EditPhotoResponse> {
+): Promise<Blob> {
   const form = new FormData();
   form.append('file', file, file instanceof File ? file.name : 'photo.png');
   form.append('prompt', prompt);
   form.append('edit_car', String(editCar));
   form.append('size', size);
 
-  const res = await apiClient.post<EditPhotoResponse>('/edit-photo', form, {
+  const res = await apiClient.post('/edit-photo', form, {
+    responseType: 'blob',
     timeout: 180_000,
   });
-  return res.data;
+  return res.data as Blob;
 }
 
 export async function carSegmentation(file: File, inverse: boolean): Promise<Blob> {
