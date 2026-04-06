@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-surface-900 text-zinc-100 antialiased;
+  }
+
+  #root {
+    @apply min-h-screen;
+  }
+}

@@ -1,22 +1,14 @@
 import io
 from PIL import Image
-from anyio.streams import file
 from fastapi import FastAPI, File, UploadFile, Form
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse
 import os
-from dotenv import load_dotenv
 from openai import OpenAI
 import base64
 from SegmentationService import segment_car, segment_car_part, working_dir
 
-# Constants
-ENV_FILE = 'C:/Users/vlad_cristian.luta/PersonalProjects/car-tuning-ai/.env'
-
 # Initialize the FastAPI app
 app = FastAPI()
-
-# Load environment variables from .env file
-load_dotenv(ENV_FILE)
 
 # Retrieve OpenAI API Key securely
 openai_key = os.getenv("OPENAI_API_KEY")
@@ -91,14 +83,6 @@ async def edit_photo(
         size="1024x1536"
     )
 
-    image_base64 = result.data[0].b64_json
-    image_bytes = base64.b64decode(image_base64)
+    image_bytes = base64.b64decode(result.data[0].b64_json)
 
-    #Define the output file path
-    output_image_path = os.path.join(working_dir, "output", "edited_image.png")
-
-    # Save the image to a file
-    with open(output_image_path, "wb") as f:
-        f.write(image_bytes)
-
-    return JSONResponse({"message": "Image edited successfully."})
+    return StreamingResponse(io.BytesIO(image_bytes), media_type="image/png")

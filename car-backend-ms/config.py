@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     APP_HOST: str = "0.0.0.0"
     APP_PORT: int = 8001
 
-    model_config = {"env_file": ".env"}
+    model_config = {"env_file": "../.env", "extra": "ignore"}
 
 
 @lru_cache

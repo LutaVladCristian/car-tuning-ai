@@ -2,7 +2,7 @@ from io import BytesIO
 
 import httpx
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.db.models.photo import OperationType, Photo
@@ -82,11 +82,11 @@ async def edit_photo(
     size: str = Form("1024x1536"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> JSONResponse:
+) -> StreamingResponse:
     content = await file.read()
 
     try:
-        result = await proxy_service.forward_edit_photo(
+        result_bytes = await proxy_service.forward_edit_photo(
             content, file.filename or "image.jpg", prompt, edit_car, size
         )
     except httpx.HTTPStatusError as exc:
@@ -96,11 +96,11 @@ async def edit_photo(
         user_id=current_user.id,
         original_filename=file.filename or "image.jpg",
         original_image=content,
-        result_image=None,
+        result_image=result_bytes,
         operation_type=OperationType.edit_photo,
         operation_params={"prompt": prompt, "edit_car": edit_car, "size": size},
     )
     db.add(photo)
     db.commit()
 
-    return JSONResponse(result)
+    return StreamingResponse(BytesIO(result_bytes), media_type="image/png")

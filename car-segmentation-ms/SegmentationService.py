@@ -2,12 +2,15 @@ import numpy as np
 import cv2
 import torch
 import os
+from dotenv import load_dotenv, find_dotenv
+
+load_dotenv(find_dotenv())
 
 from Utils import initialize_sam_model, initialize_yolo_model, apply_binary_mask_for_inpainting
 
 
-# Define a working directory
-working_dir = "C:/Users/vlad_cristian.luta/PersonalProjects/car-tuning-ai/car-segmentation-ms"
+# Resolve working directory from env; fall back to the directory of this file
+working_dir = os.getenv("WORKING_DIR", os.path.dirname(os.path.abspath(__file__)))
 
 # Define device
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")

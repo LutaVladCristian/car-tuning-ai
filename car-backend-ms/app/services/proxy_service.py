@@ -31,7 +31,7 @@ async def forward_car_part_segmentation(
 
 async def forward_edit_photo(
     content: bytes, filename: str, prompt: str, edit_car: bool, size: str
-) -> dict:
+) -> bytes:
     settings = get_settings()
     async with httpx.AsyncClient(timeout=180.0) as client:
         resp = await client.post(
@@ -40,4 +40,4 @@ async def forward_edit_photo(
             data={"prompt": prompt, "edit_car": str(edit_car).lower(), "size": size},
         )
         resp.raise_for_status()
-        return resp.json()
+        return resp.content
