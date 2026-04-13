@@ -18,6 +18,19 @@ cp .env.example .env
 
 Edit `.env` at the repo root. See `.env.example` for all required variables and their descriptions.
 
+## Cloud Dev Deployment
+
+The selected dev hosting plan is documented in `docs/dev-gcp-architecture.md`.
+
+Summary:
+
+- Cloud Run hosts `car-frontend` and `car-backend-ms`.
+- A private Compute Engine GPU VM hosts `car-segmentation-ms`.
+- Cloud SQL PostgreSQL stores application metadata.
+- Cloud Storage stores original/result images and model weights.
+- Firebase / Google Identity Platform replaces the custom username/password auth flow.
+- GitHub Actions uses Workload Identity Federation for dev CI/CD.
+
 ## Model Weights
 
 Download and place the following files under `car-segmentation-ms/model/`:
