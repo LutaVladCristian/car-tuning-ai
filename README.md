@@ -67,22 +67,56 @@ cd car-backend-ms
 alembic upgrade head
 ```
 
+## Tests
+
+Backend unit tests:
+
+```bash
+cd car-backend-ms
+pip install -r requirements.txt -r requirements-dev.txt
+pytest --tb=short -q
+```
+
+Frontend unit tests:
+
+```bash
+cd car-frontend
+npm test
+```
+
+Segmentation unit tests use lightweight test doubles for SAM/YOLO so they do not require GPU or model weights:
+
+```bash
+cd car-segmentation-ms
+pip install -r requirements-dev.txt
+pytest --tb=short -q
+```
+
+PR checks run backend, frontend, and segmentation unit-test suites, frontend lint/build, backend Alembic migration checks against Postgres, Terraform validation, and Docker build smoke checks. The workflow directory is intentionally limited to:
+
+- `.github/workflows/pr-checks.yml` for pull-request checks.
+- `.github/workflows/deploy-dev.yml` for automatic dev deployment on `main`.
+
 ---
 
 ## Running All Services
 
-Open three separate terminals:
+### Open three separate terminals:
 
+Terminal 1 — segmentation MS (port 8000)
 ```bash
-# Terminal 1 — segmentation MS (port 8000)
 conda activate sam-microservice && cd car-segmentation-ms
 uvicorn server:app --reload --port 8000
+```
 
-# Terminal 2 — backend MS (port 8001)
+Terminal 2 — backend MS (port 8001)
+```bash
 conda activate car-backend-ms && cd car-backend-ms
 uvicorn main:app --reload --port 8001
+```
 
-# Terminal 3 — frontend (port 5173)
+Terminal 3 — frontend (port 5173)
+```bash
 cd car-frontend && npm run dev
 ```
 

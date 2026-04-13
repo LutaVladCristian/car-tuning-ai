@@ -20,7 +20,14 @@ alembic upgrade head
 alembic downgrade -1
 ```
 
-There are currently no automated tests.
+Unit tests live under `car-backend-ms/tests/`.
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+pytest --tb=short -q
+```
+
+PR checks run the backend unit tests against a real Postgres service after `alembic upgrade head` and `alembic check`.
 
 ## Structure
 

@@ -16,19 +16,26 @@ function Spinner() {
 }
 
 export default function ResultDisplay({ status, resultPhotoId, error, onReset }: Props) {
-  const [imgUrl, setImgUrl] = useState<string | null>(null);
-  const [imgLoading, setImgLoading] = useState(false);
+  const [imgResult, setImgResult] = useState<{ photoId: number; url: string | null } | null>(null);
+  const imgUrl = imgResult?.photoId === resultPhotoId ? imgResult.url : null;
+  const imgLoading =
+    status === 'success' && resultPhotoId !== null && imgResult?.photoId !== resultPhotoId;
 
   useEffect(() => {
-    if (status === 'success' && resultPhotoId !== null) {
-      setImgLoading(true);
-      getPhotoUrl(resultPhotoId)
-        .then((url) => setImgUrl(url))
-        .catch(() => setImgUrl(null))
-        .finally(() => setImgLoading(false));
-    } else {
-      setImgUrl(null);
-    }
+    if (status !== 'success' || resultPhotoId === null) return;
+
+    let isActive = true;
+    getPhotoUrl(resultPhotoId)
+      .then((url) => {
+        if (isActive) setImgResult({ photoId: resultPhotoId, url });
+      })
+      .catch(() => {
+        if (isActive) setImgResult({ photoId: resultPhotoId, url: null });
+      });
+
+    return () => {
+      isActive = false;
+    };
   }, [status, resultPhotoId]);
 
   if (status === 'idle') {

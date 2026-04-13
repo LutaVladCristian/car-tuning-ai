@@ -92,10 +92,13 @@ The PR gate should run:
 
 - `alembic upgrade head`
 - `alembic check`
+- Backend unit tests with `pytest`
+- Frontend unit tests with `npm test`
+- Segmentation unit tests with `pytest`
 - `alembic downgrade base`
 - `alembic upgrade head`
 
-Use a real Postgres service in CI so JSON/enums/timestamps behave like production.
+Use a real Postgres service in CI so JSON/enums/timestamps behave like production. Segmentation unit tests use SAM/YOLO test doubles so PR checks do not require GPU or model weights.
 
 ## Dev Deploy Policy
 
@@ -109,3 +112,12 @@ On push to `main`:
 6. Update the segmentation VM container image.
 
 Production is intentionally out of scope until the dev layer is stable.
+
+## GitHub Actions Workflows
+
+The workflow directory intentionally contains only:
+
+- `.github/workflows/pr-checks.yml`: PR validation for frontend lint/test/build, backend lint/test/migrations, segmentation lint/test, Terraform validation, and Docker build smoke checks.
+- `.github/workflows/deploy-dev.yml`: automatic dev deployment after merge to `main`.
+
+Older service-specific workflows were removed to avoid duplicate status checks and duplicate image builds.

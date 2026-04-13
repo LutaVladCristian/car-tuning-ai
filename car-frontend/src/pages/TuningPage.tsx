@@ -1,5 +1,5 @@
 import { useReducer, useMemo, useState, type FormEvent } from 'react';
-import { tuningReducer } from '../components/tuning/TuningForm';
+import { tuningReducer } from '../components/tuning/tuningReducer';
 import { DEFAULT_FORM_STATE } from '../types/tuning';
 import type { ImageSourceType } from '../types/tuning';
 import { buildPrompt } from '../lib/promptBuilder';

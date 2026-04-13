@@ -15,7 +15,14 @@ cd car-segmentation-ms
 uvicorn server:app --reload --port 8000
 ```
 
-There are currently no automated tests. The ML pipeline requires GPU and model weights to run.
+Unit tests live under `car-segmentation-ms/tests/`.
+
+```bash
+pip install -r requirements-dev.txt
+pytest --tb=short -q
+```
+
+The unit tests cover lightweight utilities and model-initialization wiring with SAM/YOLO test doubles. Full ML inference tests still require GPU and model weights and are skipped in CI.
 
 ## Structure
 
@@ -27,7 +34,7 @@ car-segmentation-ms/
 └── environment-local.yml
 ```
 
-> **Note:** `server.py` currently imports `from SegmentationService import ...` — this is a stale reference from a rename. The actual module is `segmentation.py`. This import will fail until fixed.
+`server.py` imports the current `segmentation.py` module directly.
 
 ## Model Weights (gitignored)
 

@@ -1,7 +1,3 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Project Overview
 
 An AI-powered car image manipulation platform. Users upload car photos, isolate the car or specific parts, and apply AI-driven edits via REST APIs.
@@ -39,8 +35,13 @@ Single `.env` at repo root — source of truth for all three services. See [READ
 
 See [README.md](../README.md#running-all-services) for per-service venv setup and the commands to start all three services.
 
+## Cloud Dev Deployment
+
+See [docs/dev-gcp-architecture.md](../docs/dev-gcp-architecture.md) for the selected GCP dev hosting, CI/CD, auth, and database direction.
+
 ## Development Notes
 
+- PR checks run frontend tests plus unit tests for both Python microservices. Segmentation unit tests mock SAM/YOLO import-time dependencies and do not require GPU/model weights.
 - `environment-local.yml` in each service directory is the source of truth for local dev dependencies (conda); `requirements.txt` is used by Docker and CI.
 - `car-backend-ms` must stay ML-free — heavy deps (torch, ultralytics, etc.) belong only in `car-segmentation-ms`.
 - Model weights are gitignored — place in `car-segmentation-ms/model/`: `sam_vit_b_01ec64.pth`, `yolov11seg.pt`, `yolov10n.pt`.

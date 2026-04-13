@@ -53,6 +53,8 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_photos_user_id'), table_name='photos')
     op.drop_index(op.f('ix_photos_id'), table_name='photos')
     op.drop_table('photos')
+    if op.get_bind().dialect.name == 'postgresql':
+        op.execute('DROP TYPE IF EXISTS operationtype')
     op.drop_index(op.f('ix_users_username'), table_name='users')
     op.drop_index(op.f('ix_users_id'), table_name='users')
     op.drop_index(op.f('ix_users_email'), table_name='users')

@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   frontend:
-    name: Frontend lint and build
+    name: Frontend lint, test, and build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -34,13 +34,16 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Run frontend unit tests
+        run: npm test
+
       - name: Build
         run: npm run build
         env:
           VITE_API_BASE_URL: http://localhost:8001
 
   backend:
-    name: Backend lint and migrations
+    name: Backend lint, test, and migrations
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -88,13 +91,16 @@ jobs:
       - name: Detect model/schema drift
         run: alembic check
 
+      - name: Run backend unit tests
+        run: pytest --tb=short -q
+
       - name: Downgrade and re-upgrade migrations
         run: |
           alembic downgrade base
           alembic upgrade head
 
   segmentation:
-    name: Segmentation lint
+    name: Segmentation lint and test
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -106,11 +112,14 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install ruff
-        run: pip install ruff
+      - name: Install test dependencies
+        run: pip install -r requirements-dev.txt
 
-      - name: Lint only
+      - name: Lint
         run: ruff check .
+
+      - name: Run segmentation unit tests
+        run: pytest --tb=short -q
 
   terraform:
     name: Terraform validate

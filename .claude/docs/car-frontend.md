@@ -12,8 +12,11 @@ cd car-frontend
 npm run dev       # dev server at port 5173
 npm run build     # tsc -b && vite build → dist/
 npm run lint      # eslint .
+npm test          # vitest run
 npm run preview   # serve dist/ locally
 ```
+
+Frontend unit tests use Vitest and currently cover prompt construction and tuning reducer behavior. PR checks run `npm run lint`, `npm test`, and `npm run build`.
 
 **Env:** `VITE_API_BASE_URL` is read from the root `.env` via `vite.config.ts` (`envDir: '..'`). No separate `car-frontend/.env` needed.
 
