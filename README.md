@@ -33,7 +33,8 @@ Download and place the following files under `car-segmentation-ms/model/`:
 ```bash
 # Segmentation microservice (PyTorch + ML deps)
 conda env create -f car-segmentation-ms/environment-local.yml
-
+```
+```bash
 # Backend microservice (no ML deps)
 conda env create -f car-backend-ms/environment-local.yml
 ```
