@@ -1,20 +1,20 @@
-name: car-backend-ms
+name: car-segmentation-ms
 
 on:
   push:
     branches: [main]
     paths:
-      - "car-backend-ms/**"
-      - ".github/workflows/car-backend.yml"
+      - "car-segmentation-ms/**"
+      - ".github/workflows/car-segmentation-ms.yml"
   pull_request:
     branches: [main]
     paths:
-      - "car-backend-ms/**"
-      - ".github/workflows/car-backend.yml"
+      - "car-segmentation-ms/**"
+      - ".github/workflows/car-segmentation-ms.yml"
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/car-backend-ms
+  IMAGE_NAME: ${{ github.repository_owner }}/car-segmentation-ms
 
 jobs:
   lint:
@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: car-backend-ms
+        working-directory: car-segmentation-ms
     steps:
       - uses: actions/checkout@v4
 
@@ -37,56 +37,13 @@ jobs:
       - name: Lint
         run: ruff check .
 
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: car-backend-ms
-    env:
-      DATABASE_URL: sqlite:///./test.db
-      JWT_SECRET_KEY: ci-test-secret-key-at-least-32-characters
-      JWT_EXPIRE_MINUTES: 60
-      SEGMENTATION_MS_URL: http://localhost:8000
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-
-      - name: Install dependencies
-        run: |
-          pip install \
-            fastapi==0.111.0 \
-            "uvicorn[standard]==0.29.0" \
-            sqlalchemy==2.0.30 \
-            alembic==1.13.1 \
-            "pydantic[email]==2.7.1" \
-            pydantic-settings==2.2.1 \
-            passlib==1.7.4 \
-            bcrypt==3.2.2 \
-            "python-jose[cryptography]==3.3.0" \
-            httpx==0.27.0 \
-            python-multipart==0.0.9 \
-            python-dotenv==1.0.1 \
-            aiofiles==23.2.1 \
-            pytest \
-            pytest-asyncio \
-            httpx
-
-      - name: Apply migrations
-        run: alembic upgrade head
-
-      - name: Run tests
-        run: pytest --tb=short -q
+  # Full ML inference tests require GPU and model weights — skipped in CI.
+  # Add integration tests here when a GPU runner or mocked ML layer is available.
 
   build-and-push:
     name: Build & Push Docker Image
     runs-on: ubuntu-latest
-    needs: [lint, test]
+    needs: [lint]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
       contents: read
@@ -117,7 +74,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          context: car-backend-ms
+          context: car-segmentation-ms
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
