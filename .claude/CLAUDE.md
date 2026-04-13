@@ -33,43 +33,16 @@ Detailed documentation for each service lives under `.claude/docs/`:
 
 ## Unified Environment Variables
 
-Single `.env` at repo root — source of truth for all three services.
-
-```ini
-# car-segmentation-ms
-OPENAI_API_KEY=
-
-# car-backend-ms
-DATABASE_URL=sqlite:///./car_backend.db
-JWT_SECRET_KEY=change-me-to-32-plus-chars
-JWT_EXPIRE_MINUTES=60
-SEGMENTATION_MS_URL=http://localhost:8000
-APP_HOST=0.0.0.0
-APP_PORT=8001
-
-# car-frontend (read via vite.config.ts envDir: '..')
-VITE_API_BASE_URL=http://localhost:8001
-```
+Single `.env` at repo root — source of truth for all three services. See [README.md](../README.md#environment-variables) for setup instructions and `.env.example` for all required variables.
 
 ## Running All Services
 
-```bash
-# Terminal 1 — segmentation MS (port 8000)
-conda activate sam-microservice && cd car-segmentation-ms
-uvicorn server:app --reload --port 8000
-
-# Terminal 2 — backend MS (port 8001)
-conda activate car-backend-ms && cd car-backend-ms
-uvicorn main:app --reload --port 8001
-
-# Terminal 3 — frontend (port 5173)
-cd car-frontend && npm run dev
-```
+See [README.md](../README.md#running-all-services) for per-service venv setup and the commands to start all three services.
 
 ## Development Notes
 
-- `car-backend-ms` Conda env must stay ML-free — heavy deps belong only in `sam-microservice`.
-- `environment-local.yml` in each service directory is the source of truth for its dependencies.
+- `environment-local.yml` in each service directory is the source of truth for local dev dependencies (conda); `requirements.txt` is used by Docker and CI.
+- `car-backend-ms` must stay ML-free — heavy deps (torch, ultralytics, etc.) belong only in `car-segmentation-ms`.
 - Model weights are gitignored — place in `car-segmentation-ms/model/`: `sam_vit_b_01ec64.pth`, `yolov11seg.pt`, `yolov10n.pt`.
 - Do not use plain `pip install` outside of the Conda envs.
 - CORS in `car-backend-ms/main.py` is currently hardcoded to `http://localhost:5173` — update `allow_origins` before deploying.

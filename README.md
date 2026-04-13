@@ -5,12 +5,10 @@ An AI-powered car image manipulation platform. Users upload car photos, isolate 
 ## Prerequisites
 
 - [Conda](https://docs.conda.io/en/latest/miniconda.html) (Miniconda or Anaconda)
-- [Node.js](https://nodejs.org/) v18+
-- GPU with CUDA support (required for ML inference; CPU fallback is very slow)
+- [Node.js](https://nodejs.org/) v22+
+- GPU with CUDA support (required for ML inference in `car-segmentation-ms`; CPU fallback is very slow)
 
-## One-time Setup
-
-### 1. Environment variables
+## Environment Variables
 
 Copy the template and fill in the required values:
 
@@ -18,26 +16,9 @@ Copy the template and fill in the required values:
 cp .env.example .env
 ```
 
-Edit `.env` at the repo root:
+Edit `.env` at the repo root. See `.env.example` for all required variables and their descriptions.
 
-```ini
-# car-segmentation-ms
-OPENAI_API_KEY=sk-...
-WORKING_DIR=/absolute/path/to/car-segmentation-ms
-
-# car-backend-ms
-DATABASE_URL=sqlite:///./car_backend.db
-JWT_SECRET_KEY=change-me-to-32-plus-chars
-JWT_EXPIRE_MINUTES=60
-SEGMENTATION_MS_URL=http://localhost:8000
-APP_HOST=0.0.0.0
-APP_PORT=8001
-
-# car-frontend
-VITE_API_BASE_URL=http://localhost:8001
-```
-
-### 2. Model weights
+## Model Weights
 
 Download and place the following files under `car-segmentation-ms/model/`:
 
@@ -45,7 +26,9 @@ Download and place the following files under `car-segmentation-ms/model/`:
 - `yolov11seg.pt` — YOLOv11 segmentation (car part detection)
 - `yolov10n.pt` — YOLOv10n (full car detection)
 
-### 3. Create Conda environments
+## One-Time Setup
+
+### Create Conda environments
 
 ```bash
 # Segmentation microservice (PyTorch + ML deps)
@@ -55,13 +38,13 @@ conda env create -f car-segmentation-ms/environment-local.yml
 conda env create -f car-backend-ms/environment-local.yml
 ```
 
-### 4. Install frontend dependencies
+### Install frontend dependencies
 
 ```bash
 cd car-frontend && npm install
 ```
 
-### 5. Run database migrations
+### Run database migrations
 
 ```bash
 conda activate car-backend-ms
@@ -71,7 +54,7 @@ alembic upgrade head
 
 ---
 
-## Running on local machine all services
+## Running All Services
 
 Open three separate terminals:
 

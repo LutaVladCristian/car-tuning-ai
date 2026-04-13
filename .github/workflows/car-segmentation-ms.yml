@@ -6,11 +6,20 @@ on:
     paths:
       - "car-segmentation-ms/**"
       - ".github/workflows/car-segmentation-ms.yml"
+      - "pyproject.toml"
   pull_request:
     branches: [main]
     paths:
       - "car-segmentation-ms/**"
       - ".github/workflows/car-segmentation-ms.yml"
+      - "pyproject.toml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: read-all
 
 env:
   REGISTRY: ghcr.io
@@ -30,6 +39,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+          cache-dependency-path: car-segmentation-ms/requirements.txt
 
       - name: Install ruff
         run: pip install ruff
@@ -72,7 +82,7 @@ jobs:
             type=raw,value=latest
 
       - name: Build and push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: car-segmentation-ms
           push: true
