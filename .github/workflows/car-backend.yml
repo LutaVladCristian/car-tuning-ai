@@ -1,0 +1,18 @@
+name: Backend Server Tests
+
+on: 
+  pull_request:
+    branches:
+      - main
+
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run: 
+        working-directory: ./app/
+
+    strategy:
+      matrix:
+        python-version: [3.]
