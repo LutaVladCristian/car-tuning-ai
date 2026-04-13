@@ -5,7 +5,7 @@ from fastapi.responses import StreamingResponse
 import os
 from openai import OpenAI
 import base64
-from SegmentationService import segment_car, segment_car_part, working_dir
+from segmentation import segment_car, segment_car_part, working_dir
 
 # Initialize the FastAPI app
 app = FastAPI()

@@ -1,0 +1,110 @@
+name: deploy-dev
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ vars.GCP_REGION || 'europe-central2' }}
+  ARTIFACT_REPOSITORY: car-tuning-ai-dev-containers
+  FRONTEND_SERVICE: car-tuning-ai-dev-frontend
+  BACKEND_SERVICE: car-tuning-ai-dev-backend
+  BACKEND_SERVICE_ACCOUNT: car-tuning-ai-dev-backend@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+  CLOUD_SQL_INSTANCE: ${{ vars.GCP_PROJECT_ID }}:${{ vars.GCP_REGION || 'europe-central2' }}:car-tuning-ai-dev-postgres
+  SEGMENTATION_INSTANCE: car-tuning-ai-dev-segmentation
+  SEGMENTATION_ZONE: ${{ vars.GCP_ZONE || 'europe-central2-b' }}
+
+jobs:
+  deploy-dev:
+    name: Build and deploy dev
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker auth
+        run: gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
+
+      - name: Build frontend image
+        run: >-
+          docker build
+          --build-arg VITE_API_BASE_URL="${{ vars.DEV_BACKEND_URL }}"
+          -t "${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REPOSITORY}/car-frontend:${GITHUB_SHA}"
+          car-frontend
+
+      - name: Build backend image
+        run: >-
+          docker build
+          -t "${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REPOSITORY}/car-backend-ms:${GITHUB_SHA}"
+          car-backend-ms
+
+      - name: Build segmentation image
+        run: >-
+          docker build
+          -t "${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REPOSITORY}/car-segmentation-ms:${GITHUB_SHA}"
+          car-segmentation-ms
+
+      - name: Push images
+        run: |
+          docker push "${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REPOSITORY}/car-frontend:${GITHUB_SHA}"
+          docker push "${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REPOSITORY}/car-backend-ms:${GITHUB_SHA}"
+          docker push "${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REPOSITORY}/car-segmentation-ms:${GITHUB_SHA}"
+
+      - name: Run database migrations
+        run: >-
+          gcloud run jobs deploy car-tuning-ai-dev-migrations
+          --image "${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REPOSITORY}/car-backend-ms:${GITHUB_SHA}"
+          --region "${GCP_REGION}"
+          --service-account "${BACKEND_SERVICE_ACCOUNT}"
+          --set-cloudsql-instances "${CLOUD_SQL_INSTANCE}"
+          --set-secrets DATABASE_URL=car-tuning-ai-dev-database-url:latest
+          --command alembic
+          --args upgrade,head
+
+      - name: Execute database migrations
+        run: >-
+          gcloud run jobs execute car-tuning-ai-dev-migrations
+          --region "${GCP_REGION}"
+          --wait
+
+      - name: Deploy backend Cloud Run service
+        run: >-
+          gcloud run deploy "${BACKEND_SERVICE}"
+          --image "${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REPOSITORY}/car-backend-ms:${GITHUB_SHA}"
+          --region "${GCP_REGION}"
+          --service-account "${BACKEND_SERVICE_ACCOUNT}"
+          --add-cloudsql-instances "${CLOUD_SQL_INSTANCE}"
+          --allow-unauthenticated
+
+      - name: Deploy frontend Cloud Run service
+        run: >-
+          gcloud run deploy "${FRONTEND_SERVICE}"
+          --image "${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REPOSITORY}/car-frontend:${GITHUB_SHA}"
+          --region "${GCP_REGION}"
+          --allow-unauthenticated
+
+      - name: Update segmentation VM container
+        run: >-
+          gcloud compute instances update-container "${SEGMENTATION_INSTANCE}"
+          --zone "${SEGMENTATION_ZONE}"
+          --container-image "${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REPOSITORY}/car-segmentation-ms:${GITHUB_SHA}"

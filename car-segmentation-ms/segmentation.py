@@ -6,20 +6,20 @@ from dotenv import load_dotenv, find_dotenv
 
 load_dotenv(find_dotenv())
 
-from Utils import initialize_sam_model, initialize_yolo_model, apply_binary_mask_for_inpainting
+from utils import initialize_sam_model, initialize_yolo_model, apply_binary_mask_for_inpainting
 
 
 # Resolve working directory from env; fall back to the directory of this file
-working_dir = os.getenv("WORKING_DIR", os.path.dirname(os.path.abspath(__file__)))
+working_dir = 'output'
 
 # Define device
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Constants for initialization
-SAM_CHECKPOINT_PATH = working_dir + "/model/sam_vit_b_01ec64.pth"
+SAM_CHECKPOINT_PATH = "/model/sam_vit_b_01ec64.pth"
 SAM_MODEL_TYPE = "vit_b"
-YOLO_SEG_MODEL_PATH = working_dir + '/model/yolov11seg.pt'
-YOLO_DETECTION_MODEL_PATH = working_dir + '/model/yolov10n.pt'
+YOLO_SEG_MODEL_PATH = '/model/yolov11seg.pt'
+YOLO_DETECTION_MODEL_PATH = '/model/yolov10n.pt'
 
 # Initialize models
 sam_predictor = initialize_sam_model(SAM_CHECKPOINT_PATH, SAM_MODEL_TYPE, DEVICE)
@@ -64,10 +64,7 @@ def segment_car(content, inverse=True, size="1024x1536"):
     mask_np = np.squeeze(mask_np)  # shape: (H, W)
     mask_np = (mask_np * 255).astype(np.uint8)
 
-    # Save the mask as JPEG
-    output_dir = os.path.join(working_dir + "\output")
-
-    return apply_binary_mask_for_inpainting(img, mask_np, output_dir, inverse, size)
+    return apply_binary_mask_for_inpainting(img, mask_np, working_dir, inverse, size)
 
 
 def segment_car_part(content, target_class_id=22, inverse=False, size="1024x1536"):
@@ -101,18 +98,4 @@ def segment_car_part(content, target_class_id=22, inverse=False, size="1024x1536
     # Convert boolean mask to uint8
     mask_np = (class_mask * 255).astype(np.uint8)
 
-    # Save the mask
-    output_dir = os.path.join(working_dir, "output")
-
-    return apply_binary_mask_for_inpainting(img, mask_np, output_dir, inverse, size)
-
-
-# For testing
-input_image = working_dir + "/input/side.jpeg"
-
-if __name__ == "__main__":
-    with open(input_image, "rb") as f:
-        input_image = f.read()
-
-    segment_car(input_image)
-    #segment_car_part(input_image, target_class_id=22)
+    return apply_binary_mask_for_inpainting(img, mask_np, working_dir, inverse, size)

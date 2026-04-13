@@ -1,0 +1,123 @@
+# Car Tuning AI
+
+An AI-powered car image manipulation platform. Users upload car photos, isolate the car or specific parts, and apply AI-driven edits.
+
+## Prerequisites
+
+- [Conda](https://docs.conda.io/en/latest/miniconda.html) (Miniconda or Anaconda)
+- [Node.js](https://nodejs.org/) v22+
+- GPU with CUDA support (required for ML inference in `car-segmentation-ms`; CPU fallback is very slow)
+
+## Environment Variables
+
+Copy the template and fill in the required values:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` at the repo root. See `.env.example` for all required variables and their descriptions.
+
+## Cloud Dev Deployment
+
+The selected dev hosting plan is documented in `docs/dev-gcp-architecture.md`.
+
+Summary:
+
+- Cloud Run hosts `car-frontend` and `car-backend-ms`.
+- A private Compute Engine GPU VM hosts `car-segmentation-ms`.
+- Cloud SQL PostgreSQL stores application metadata.
+- Cloud Storage stores original/result images and model weights.
+- Firebase / Google Identity Platform replaces the custom username/password auth flow.
+- GitHub Actions uses Workload Identity Federation for dev CI/CD.
+
+## Model Weights
+
+Download and place the following files under `car-segmentation-ms/model/`:
+
+- `sam_vit_b_01ec64.pth` — SAM ViT-Base
+- `yolov11seg.pt` — YOLOv11 segmentation (car part detection)
+- `yolov10n.pt` — YOLOv10n (full car detection)
+
+## One-Time Setup
+
+### Create Conda environments
+
+Segmentation microservice (PyTorch + ML deps)
+```bash
+conda env create -f car-segmentation-ms/environment-local.yml
+```
+
+Backend microservice (no ML deps)
+```bash
+conda env create -f car-backend-ms/environment-local.yml
+```
+
+### Install frontend dependencies
+
+```bash
+cd car-frontend && npm install
+```
+
+### Run database migrations
+
+```bash
+conda activate car-backend-ms
+cd car-backend-ms
+alembic upgrade head
+```
+
+## Tests
+
+Backend unit tests:
+
+```bash
+cd car-backend-ms
+pip install -r requirements.txt -r requirements-dev.txt
+pytest --tb=short -q
+```
+
+Frontend unit tests:
+
+```bash
+cd car-frontend
+npm test
+```
+
+Segmentation unit tests use lightweight test doubles for SAM/YOLO so they do not require GPU or model weights:
+
+```bash
+cd car-segmentation-ms
+pip install -r requirements-dev.txt
+pytest --tb=short -q
+```
+
+PR checks run backend, frontend, and segmentation unit-test suites, frontend lint/build, backend Alembic migration checks against Postgres, Terraform validation, and Docker build smoke checks. The workflow directory is intentionally limited to:
+
+- `.github/workflows/pr-checks.yml` for pull-request checks.
+- `.github/workflows/deploy-dev.yml` for automatic dev deployment on `main`.
+
+---
+
+## Running All Services
+
+### Open three separate terminals:
+
+Terminal 1 — segmentation MS (port 8000)
+```bash
+conda activate sam-microservice && cd car-segmentation-ms
+uvicorn server:app --reload --port 8000
+```
+
+Terminal 2 — backend MS (port 8001)
+```bash
+conda activate car-backend-ms && cd car-backend-ms
+uvicorn main:app --reload --port 8001
+```
+
+Terminal 3 — frontend (port 5173)
+```bash
+cd car-frontend && npm run dev
+```
+
+The app is available at **http://localhost:5173**.

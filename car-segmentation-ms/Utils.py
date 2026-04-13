@@ -47,11 +47,9 @@ def apply_binary_mask_for_inpainting(image, mask, output_dir, inverse=False, siz
 
     # Invert mask if needed
     inpaint_mask = cv2.bitwise_not(binary_mask) if inverse else binary_mask
-    #cv2.imwrite(os.path.join(output_dir, "2_inpainting_mask.png"), inpaint_mask)
 
     # Optional blurred version
     blurred_mask = cv2.GaussianBlur(inpaint_mask, (5, 5), 10)
-    #cv2.imwrite(os.path.join(output_dir, "3_blurred_mask_visual.png"), blurred_mask)
 
     # Create an alpha-enabled mask image using PIL
     pil_mask = Image.fromarray(blurred_mask).convert("L")

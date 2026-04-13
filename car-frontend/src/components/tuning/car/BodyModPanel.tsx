@@ -1,6 +1,6 @@
 import type { CarEditState } from '../../../types/tuning';
 import type { Dispatch } from 'react';
-import type { TuningAction } from '../TuningForm';
+import type { TuningAction } from '../tuningReducer';
 
 const SPOILERS = ['None', 'Low-profile lip', 'Sport spoiler', 'Performance wing', 'GT racing wing'];
 const RIM_SIZES = ['Stock', '17-inch', '18-inch', '19-inch', '20-inch', '21-inch'];

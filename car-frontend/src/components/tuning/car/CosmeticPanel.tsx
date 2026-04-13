@@ -1,6 +1,6 @@
 import type { CarEditState } from '../../../types/tuning';
 import type { Dispatch } from 'react';
-import type { TuningAction } from '../TuningForm';
+import type { TuningAction } from '../tuningReducer';
 
 const WINDOW_TINTS = ['None', '70% (light)', '50% (medium)', '35% (dark)', '20% (very dark)', '5% (limo)'];
 const LIGHTING = [

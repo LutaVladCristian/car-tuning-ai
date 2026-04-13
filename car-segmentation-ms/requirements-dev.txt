@@ -1,0 +1,5 @@
+pytest
+numpy<2
+opencv-python-headless
+pillow
+ruff
