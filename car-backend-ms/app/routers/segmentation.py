@@ -112,7 +112,7 @@ async def edit_photo(
     file: UploadFile = File(...),
     prompt: str = Form(...),
     edit_car: bool = Form(...),
-    size: str = Form("1024x1536"),
+    size: str = Form("auto"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> StreamingResponse:

@@ -35,7 +35,7 @@ yolo_segmentation_model = initialize_yolo_model(YOLO_SEG_MODEL_PATH, DEVICE)
 yolo_detection_model = initialize_yolo_model(YOLO_DETECTION_MODEL_PATH, DEVICE)
 
 
-def segment_car(content, inverse=True, size="1024x1536", output_dir=None):
+def segment_car(content, inverse=True, size=None, output_dir=None):
     """Segment cars from an input image.
 
     Args:
@@ -82,7 +82,7 @@ def segment_car(content, inverse=True, size="1024x1536", output_dir=None):
     return apply_binary_mask_for_inpainting(img, mask_np, output_dir, inverse, size)
 
 
-def segment_car_part(content, target_class_id=22, inverse=False, size="1024x1536", output_dir=None):
+def segment_car_part(content, target_class_id=22, inverse=False, size=None, output_dir=None):
     """Run YOLOv11 segmentation and save mask for a specific class (e.g., wheels, lights, etc.)."""
     if output_dir is None:
         output_dir = working_dir

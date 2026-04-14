@@ -2,13 +2,13 @@ import base64
 import io
 import os
 import shutil
-import tempfile
+import uuid
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from openai import OpenAI
 from PIL import Image
-from segmentation import segment_car, segment_car_part
+from segmentation import segment_car, segment_car_part, working_dir
 
 # Initialize the FastAPI app
 app = FastAPI()
@@ -89,18 +89,24 @@ async def edit_photo(
         max_length=_MAX_PROMPT_LEN,
     ),
     edit_car: bool = Form(...),
-    size: str = Form("1024x1536"),
+    size: str = Form("auto"),
 ):
     # C2: Sanitize the prompt.
     prompt = prompt.strip()
+    size = size.strip().lower()
 
     content = await file.read()
+    with Image.open(io.BytesIO(content)) as source_image:
+        source_width, source_height = source_image.size
+    preprocessing_size = None if size == "auto" else size
 
     # C3 + H3: Use a per-request temp directory so concurrent requests cannot
     # overwrite each other's files, and clean it up unconditionally afterwards.
-    tmp_dir = tempfile.mkdtemp()
+    os.makedirs(working_dir, exist_ok=True)
+    tmp_dir = os.path.join(working_dir, f"request-{uuid.uuid4().hex}")
+    os.makedirs(tmp_dir)
     try:
-        segment_car(content, edit_car, size, output_dir=tmp_dir)
+        segment_car(content, edit_car, preprocessing_size, output_dir=tmp_dir)
 
         image_path = os.path.join(tmp_dir, "image.png")
         mask_path = os.path.join(tmp_dir, "mask.png")
@@ -113,11 +119,19 @@ async def edit_photo(
                 mask=mask_f,
                 prompt=prompt,
                 quality="high",
-                size="1024x1536",
+                size=size,
             )
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
     image_bytes = base64.b64decode(result.data[0].b64_json)
+    with Image.open(io.BytesIO(image_bytes)) as edited_image:
+        if size == "auto" and edited_image.size != (source_width, source_height):
+            resampling = Image.Resampling.LANCZOS
+            edited_image = edited_image.resize((source_width, source_height), resampling)
 
-    return StreamingResponse(io.BytesIO(image_bytes), media_type="image/png")
+        output = io.BytesIO()
+        edited_image.save(output, format="PNG")
+        output.seek(0)
+
+    return StreamingResponse(output, media_type="image/png")

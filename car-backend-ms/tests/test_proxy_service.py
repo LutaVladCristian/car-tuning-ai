@@ -102,11 +102,11 @@ class TestForwardEditPhoto:
     async def test_forwards_all_params(self):
         ctx, mock_client = _make_async_client()
         with patch("app.services.proxy_service.httpx.AsyncClient", return_value=ctx):
-            await forward_edit_photo(b"img", "car.jpg", "rally livery", False, "1024x1536")
+            await forward_edit_photo(b"img", "car.jpg", "rally livery", False, "auto")
         _, kwargs = mock_client.post.call_args
         assert kwargs["data"]["prompt"] == "rally livery"
         assert kwargs["data"]["edit_car"] == "false"
-        assert kwargs["data"]["size"] == "1024x1536"
+        assert kwargs["data"]["size"] == "auto"
 
     async def test_raises_on_error_status(self):
         ctx, _ = _make_async_client(status_code=400)

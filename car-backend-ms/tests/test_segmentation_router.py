@@ -153,7 +153,7 @@ class TestEditPhoto:
             resp = client.post(
                 "/edit-photo",
                 files={"file": ("car.jpg", FAKE_JPEG, "image/jpeg")},
-                data={"prompt": "make it red", "edit_car": "true", "size": "1024x1536"},
+                data={"prompt": "make it red", "edit_car": "true"},
                 headers=auth_headers,
             )
         assert resp.status_code == 200
@@ -174,12 +174,24 @@ class TestEditPhoto:
         assert photo.operation_params["edit_car"] is False
         assert photo.operation_params["size"] == "1024x1024"
 
+    def test_defaults_size_to_auto(self, client, auth_headers, user_and_token, db):
+        user, _ = user_and_token
+        with patch("app.routers.segmentation.proxy_service.forward_edit_photo", _mock_proxy()):
+            client.post(
+                "/edit-photo",
+                files={"file": ("car.jpg", FAKE_JPEG, "image/jpeg")},
+                data={"prompt": "keep resolution", "edit_car": "true"},
+                headers=auth_headers,
+            )
+        photo = db.query(Photo).filter(Photo.user_id == user.id).first()
+        assert photo.operation_params["size"] == "auto"
+
     def test_5xx_proxy_error_returns_502(self, client, auth_headers):
         with patch("app.routers.segmentation.proxy_service.forward_edit_photo", _http_status_error(503)):
             resp = client.post(
                 "/edit-photo",
                 files={"file": ("car.jpg", FAKE_JPEG, "image/jpeg")},
-                data={"prompt": "p", "edit_car": "true", "size": "1024x1536"},
+                data={"prompt": "p", "edit_car": "true"},
                 headers=auth_headers,
             )
         assert resp.status_code == 502
@@ -188,6 +200,6 @@ class TestEditPhoto:
         resp = client.post(
             "/edit-photo",
             files={"file": ("car.jpg", FAKE_JPEG, "image/jpeg")},
-            data={"prompt": "p", "edit_car": "true", "size": "1024x1536"},
+            data={"prompt": "p", "edit_car": "true"},
         )
         assert resp.status_code == 401

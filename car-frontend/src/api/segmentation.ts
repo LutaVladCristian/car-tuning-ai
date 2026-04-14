@@ -4,7 +4,7 @@ export async function editPhoto(
   file: File | Blob,
   prompt: string,
   editCar: boolean,
-  size = '1024x1536'
+  size = 'auto'
 ): Promise<Blob> {
   const form = new FormData();
   form.append('file', file, file instanceof File ? file.name : 'photo.png');

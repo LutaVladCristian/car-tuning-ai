@@ -29,7 +29,7 @@ def apply_binary_mask_for_inpainting(image, mask, output_dir, inverse=False, siz
 
     os.makedirs(output_dir, exist_ok=True)
 
-    if size:
+    if size and size != "auto":
         # M1: validate format and cap dimensions before resizing.
         parts = size.split("x")
         if len(parts) != 2:

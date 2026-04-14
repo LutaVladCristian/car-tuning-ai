@@ -1,5 +1,6 @@
 import os
 import sys
+from pathlib import Path
 from unittest.mock import MagicMock
 
 # Must be set before server.py is imported (checked at module level)
@@ -8,7 +9,7 @@ os.environ["OPENAI_API_KEY"] = "test-key"
 # Stub the segmentation module so YOLO/SAM model files are never loaded.
 # server.py does: from segmentation import segment_car, segment_car_part, working_dir
 _mock_seg = MagicMock()
-_mock_seg.working_dir = "/tmp/seg_test"
+_mock_seg.working_dir = str(Path(__file__).resolve().parents[1] / "output" / "test-requests")
 sys.modules["segmentation"] = _mock_seg
 
 import pytest  # noqa: E402
