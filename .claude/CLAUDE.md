@@ -7,8 +7,32 @@ An AI-powered car image manipulation platform. Users upload car photos, isolate 
 ## Architecture
 
 ```
-
+┌─────────────────────────────────────────────────────┐
+│                    Browser                          │
+│              http://localhost:5173                  │
+│           React 19 + TypeScript (Vite)              │
+└──────────────────────┬──────────────────────────────┘
+                       │ HTTP (Axios + JWT)
+                       ▼
+┌─────────────────────────────────────────────────────┐
+│            car-backend-ms  :8001                    │
+│         FastAPI — auth gateway + proxy              │
+│   JWT auth · SQLAlchemy ORM · Alembic migrations    │
+└───────┬──────────────────────────┬──────────────────┘
+        │ SQL (psycopg2)           │ HTTP (httpx)
+        ▼                         ▼
+┌───────────────┐   ┌─────────────────────────────────┐
+│  PostgreSQL   │   │     car-segmentation-ms  :8000  │
+│  (Cloud SQL   │   │  FastAPI — ML inference          │
+│   or local)   │   │  YOLOv10n · SAM · OpenAI API    │
+└───────────────┘   └─────────────────────────────────┘
 ```
+
+**Request flow:**
+1. Browser authenticates and sends image + form data to `car-backend-ms`.
+2. Backend validates JWT, stores the original image in PostgreSQL, then proxies the request to `car-segmentation-ms`.
+3. Segmentation service runs YOLO → SAM (→ OpenAI for `/edit-photo`) and returns a PNG.
+4. Backend stores the result PNG in PostgreSQL and returns it to the browser.
 
 ## Service Docs
 
