@@ -1,9 +1,11 @@
-from segment_anything import sam_model_registry, SamPredictor
-from ultralytics import YOLO
+import os
+
 import cv2
 import numpy as np
-import os
 from PIL import Image
+from segment_anything import SamPredictor, sam_model_registry
+from ultralytics import YOLO
+
 
 def initialize_sam_model(checkpoint_path, model_type, device):
     """Initialize the SAM model."""

@@ -4,8 +4,8 @@ import httpx
 import pytest
 
 from app.services.proxy_service import (
-    forward_car_segmentation,
     forward_car_part_segmentation,
+    forward_car_segmentation,
     forward_edit_photo,
 )
 

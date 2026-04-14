@@ -1,10 +1,11 @@
-import io
-from PIL import Image
-from fastapi import FastAPI, File, UploadFile, Form
-from fastapi.responses import StreamingResponse
-import os
-from openai import OpenAI
 import base64
+import io
+import os
+
+from fastapi import FastAPI, File, Form, UploadFile
+from fastapi.responses import StreamingResponse
+from openai import OpenAI
+from PIL import Image
 from segmentation import segment_car, segment_car_part, working_dir
 
 # Initialize the FastAPI app

@@ -1,10 +1,10 @@
-from datetime import datetime, timedelta, timezone
+import secrets
+from datetime import UTC, datetime, timedelta
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from config import get_settings
-import secrets
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -20,13 +20,12 @@ JWT_SECRET_KEY=secrets.token_hex(32)
 
 def create_access_token(subject: str) -> str:
     settings = get_settings()
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
+    expire = datetime.now(UTC) + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
     payload = {"sub": subject, "exp": expire}
     return jwt.encode(payload, JWT_SECRET_KEY, algorithm="HS256")
 
 
 def decode_access_token(token: str) -> str:
-    settings = get_settings()
     payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
     sub: str = payload.get("sub")
     if sub is None:

@@ -6,18 +6,18 @@ os.environ["SEGMENTATION_MS_URL"] = "http://fake-seg:8000"
 
 import pytest
 from fastapi.testclient import TestClient
+from main import app as fastapi_app
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.db.models.photo  # noqa: F401
 import app.db.models.user  # noqa: F401
+from app.core.security import create_access_token, hash_password
 from app.db.base import Base
 from app.db.models.photo import OperationType, Photo
 from app.db.models.user import User
-from app.core.security import create_access_token, hash_password
 from dependencies import get_db
-from main import app
 
 _engine = create_engine(
     "sqlite:///:memory:",
@@ -48,10 +48,10 @@ def client(db):
     def _override_get_db():
         yield db
 
-    app.dependency_overrides[get_db] = _override_get_db
-    with TestClient(app, raise_server_exceptions=True) as c:
+    fastapi_app.dependency_overrides[get_db] = _override_get_db
+    with TestClient(fastapi_app, raise_server_exceptions=True) as c:
         yield c
-    app.dependency_overrides.clear()
+    fastapi_app.dependency_overrides.clear()
 
 
 @pytest.fixture()

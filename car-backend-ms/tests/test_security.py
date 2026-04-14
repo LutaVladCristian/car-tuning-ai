@@ -61,6 +61,7 @@ class TestCreateAndDecodeToken:
 
     def test_decode_token_without_sub_raises_jwt_error(self):
         from jose import jwt
+
         from app.core.security import JWT_SECRET_KEY
         # Create a token that has no "sub" claim
         raw = jwt.encode({"data": "nope"}, JWT_SECRET_KEY, algorithm="HS256")

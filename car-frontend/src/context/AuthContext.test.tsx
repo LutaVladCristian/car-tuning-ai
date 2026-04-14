@@ -76,7 +76,7 @@ describe('AuthContext', () => {
   });
 
   it('calls registerUser with the correct payload', async () => {
-    mockRegisterUser.mockResolvedValueOnce({ id: 1, username: 'carol', email: 'carol@example.com' });
+    mockRegisterUser.mockResolvedValueOnce({ id: 1, username: 'carol', email: 'carol@example.com', created_at: '2026-01-01T00:00:00Z' });
 
     const { result } = renderHook(() => useAuth(), { wrapper });
 

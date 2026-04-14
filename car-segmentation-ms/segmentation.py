@@ -1,13 +1,16 @@
-import numpy as np
+
 import cv2
+import numpy as np
 import torch
-import os
-from dotenv import load_dotenv, find_dotenv
+from dotenv import find_dotenv, load_dotenv
 
 load_dotenv(find_dotenv())
 
-from utils import initialize_sam_model, initialize_yolo_model, apply_binary_mask_for_inpainting
-
+from utils import (  # noqa: E402
+    apply_binary_mask_for_inpainting,
+    initialize_sam_model,
+    initialize_yolo_model,
+)
 
 # Resolve working directory from env; fall back to the directory of this file
 working_dir = 'output'
