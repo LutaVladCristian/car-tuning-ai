@@ -10,7 +10,6 @@ numpy<2
 opencv-python-headless
 pillow
 ultralytics
-yolov5
 git+https://github.com/facebookresearch/segment-anything.git
 
 # API / server
@@ -20,5 +19,4 @@ python-multipart
 python-dotenv
 openai
 requests
-chardet
 charset-normalizer

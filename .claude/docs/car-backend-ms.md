@@ -8,108 +8,84 @@ FastAPI gateway service — JWT auth, photo persistence, and proxy to `car-segme
 
 ## Commands
 
-```bash
-conda activate car-backend-ms
-cd car-backend-ms
-
-uvicorn main:app --reload --port 8001   # dev server
-
-# Migrations
-alembic revision --autogenerate -m "<description>"
-alembic upgrade head
-alembic downgrade -1
-```
-
-Unit tests live under `car-backend-ms/tests/`.
-
-```bash
-pip install -r requirements.txt -r requirements-dev.txt
-pytest --tb=short -q
-```
-
-PR checks run the backend unit tests against a real Postgres service after `alembic upgrade head` and `alembic check`.
+See [README.md](../../README.md) for commands.
 
 ## Structure
 
 ```
 car-backend-ms/
-├── main.py               # FastAPI app, CORS middleware, router registration
-├── config.py             # Settings (pydantic-settings), get_settings() cached with lru_cache
-├── dependencies.py       # get_db() session generator, get_current_user() JWT dependency
-├── environment-local.yml # Conda env definition (source of truth for deps)
-├── alembic.ini
-├── alembic/versions/     # DB migration scripts
+├── main.py                    # FastAPI app, CORS, router registration, GET /health
+├── config.py                  # pydantic-settings reads ../.env
+├── dependencies.py            # JWT decode + DB session FastAPI dependencies
+├── alembic/
+│   └── versions/
+│       └── 45e90066957a_db_setup_v1.py  # initial migration (users + photos tables)
 └── app/
-    ├── core/security.py          # hash_password, verify_password, create_access_token, decode_access_token
+    ├── core/
+    │   └── security.py        # bcrypt hashing, JWT create/decode (python-jose)
     ├── db/
-    │   ├── session.py            # SessionLocal (SQLAlchemy engine + session factory)
-    │   ├── base.py               # declarative Base
-    │   └── models/               # User, Photo ORM models
-    ├── schemas/                  # Pydantic request/response models (auth.py, photo.py)
-    ├── routers/                  # auth.py, segmentation.py, photos.py
+    │   ├── session.py         # SQLAlchemy engine + SessionLocal
+    │   ├── base.py            # declarative Base
+    │   └── models/
+    │       ├── user.py        # User ORM
+    │       └── photo.py       # Photo ORM + OperationType enum
+    ├── routers/
+    │   ├── auth.py            # POST /auth/register, POST /auth/login
+    │   ├── photos.py          # GET /photos, GET /photos/{id}
+    │   └── segmentation.py    # POST /car-segmentation, /car-part-segmentation, /edit-photo
+    ├── schemas/               # Pydantic request/response models
     └── services/
-        └── proxy_service.py      # httpx async forwarding to segmentation MS
+        └── proxy_service.py   # httpx forwarding to car-segmentation-ms
 ```
 
 ## API Endpoints
 
 | Method | Path | Auth | Description |
-|---|---|---|---|
-| POST | `/auth/register` | — | Create user (bcrypt hash, 201) |
-| POST | `/auth/login` | — | Returns JWT bearer token |
-| POST | `/car-segmentation` | JWT | Proxy + store blobs in DB |
-| POST | `/car-part-segmentation` | JWT | Proxy + store blobs in DB |
-| POST | `/edit-photo` | JWT | Proxy + store original blob in DB |
-| GET | `/photos` | JWT | List user's photo history (metadata only) |
-| GET | `/photos/{id}` | JWT | Stream photo blob as image/png |
-| GET | `/health` | — | Liveness check |
+|--------|------|------|-------------|
+| GET | `/health` | None | Health check |
+| POST | `/auth/register` | None | Create user account |
+| POST | `/auth/login` | None | Returns JWT access token |
+| GET | `/photos` | JWT | List user's photos with pagination (`skip`, `limit`) — returns `{photos, total}` |
+| GET | `/photos/{photo_id}` | JWT | Stream photo PNG (result image if available, otherwise original) |
+| POST | `/car-segmentation` | JWT | Proxy to segmentation MS (120 s timeout); saves Photo record |
+| POST | `/car-part-segmentation` | JWT | Proxy to segmentation MS (120 s timeout); saves Photo with `carPartId` |
+| POST | `/edit-photo` | JWT | Proxy to segmentation MS (180 s timeout for OpenAI); saves Photo with `prompt` |
 
 ## Auth Flow
 
-1. `POST /auth/register` → bcrypt hash → User row → 201
-2. `POST /auth/login` → verify hash → `{"access_token": "eyJ...", "token_type": "bearer"}`
-3. Protected routes: `Authorization: Bearer <token>`
-4. `get_current_user()` in `dependencies.py` decodes HS256 JWT → DB lookup → User ORM or 401
-
-JWT payload: `{"sub": "<username>", "exp": <unix>}`. Expiry via `JWT_EXPIRE_MINUTES`.
+1. **Register** — `POST /auth/register` validates uniqueness of `username` and `email`, hashes the password with bcrypt, and inserts a `User` row.
+2. **Login** — `POST /auth/login` loads the user by username, verifies the bcrypt hash, and returns a signed JWT with claim `{"sub": username}`.
+3. **Protected endpoints** — `dependencies.py` extracts `Authorization: Bearer <token>`, decodes the JWT via `python-jose`, and resolves the `User` from the DB. A missing or invalid token returns HTTP 401.
 
 ## Database Schema
 
-### `users`
-| Column | Type | Constraints |
-|---|---|---|
-| id | INTEGER | PK |
-| username | VARCHAR(50) | UNIQUE, NOT NULL, indexed |
-| email | VARCHAR(255) | UNIQUE, NOT NULL, indexed |
-| hashed_password | VARCHAR(255) | NOT NULL |
-| created_at | TIMESTAMPTZ | server default NOW() |
+**`users` table**
 
-### `photos`
 | Column | Type | Constraints |
-|---|---|---|
-| id | INTEGER | PK |
-| user_id | INTEGER | FK → users.id, indexed |
-| original_filename | VARCHAR(255) | NOT NULL |
-| original_image | BYTEA/BLOB | NOT NULL |
-| result_image | BYTEA/BLOB | nullable |
-| operation_type | ENUM | `car_segmentation` / `car_part_segmentation` / `edit_photo` |
-| operation_params | JSON | nullable |
-| created_at | TIMESTAMPTZ | server default NOW() |
+|--------|------|-------------|
+| `id` | integer | PK, auto-increment |
+| `username` | varchar | unique, not null |
+| `email` | varchar | unique, not null |
+| `hashed_password` | varchar | not null |
+| `created_at` | timestamp | default now() |
+
+**`photos` table**
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | integer | PK, auto-increment |
+| `user_id` | integer | FK → users.id, not null |
+| `original_filename` | varchar | |
+| `original_image` | LargeBinary | raw bytes of uploaded file |
+| `result_image` | LargeBinary | nullable — filled after ML processing |
+| `operation_type` | enum | `car_segmentation` \| `car_part_segmentation` \| `edit_photo` |
+| `operation_params` | JSON | extra params: `carPartId`, `prompt`, `edit_car`, `inverse`, `size` |
+| `created_at` | timestamp | default now() |
+
+Both tables are created by the single Alembic migration `alembic/versions/45e90066957a_db_setup_v1.py`.
+
 
 ## Proxy Timeouts
 
 - `/car-segmentation`, `/car-part-segmentation`: 120 s (`proxy_service.py`)
 - `/edit-photo`: 180 s (OpenAI image generation)
-
-## Docker
-
-```bash
-docker build -t car-backend-ms ./car-backend-ms
-docker run -p 8001:8001 \
-  -e DATABASE_URL=postgresql://user:pass@host/db \
-  -e JWT_SECRET_KEY=secret \
-  -e SEGMENTATION_MS_URL=http://segmentation-host:8000 \
-  car-backend-ms
-```
-
-The Docker image uses `python:3.12-slim` with `pip install` (no Conda on container runtimes).

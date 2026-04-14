@@ -2,27 +2,13 @@
 
 Internal FastAPI ML inference service — YOLO detection, SAM masking, and OpenAI image editing.
 
-**Conda env:** `sam-microservice` (Python 3.12, PyTorch + heavy ML deps)
+**Conda env:** `sam-microservice` (Python 3.10, PyTorch 2.2.0 + heavy ML deps — note: differs from `car-backend-ms` which uses Python 3.12)
 **Port:** 8000 (not exposed publicly — backend proxies to it)
 **No auth** — accessible only from within the same network/host as `car-backend-ms`.
 
 ## Commands
 
-```bash
-conda activate sam-microservice
-cd car-segmentation-ms
-
-uvicorn server:app --reload --port 8000
-```
-
-Unit tests live under `car-segmentation-ms/tests/`.
-
-```bash
-pip install -r requirements-dev.txt
-pytest --tb=short -q
-```
-
-The unit tests cover lightweight utilities and model-initialization wiring with SAM/YOLO test doubles. Full ML inference tests still require GPU and model weights and are skipped in CI.
+See [README.md](../../README.md) for commands.
 
 ## Structure
 
@@ -51,7 +37,7 @@ Place in `car-segmentation-ms/model/`:
 | POST | `/car-part-segmentation` | `file`, `carPartId` (int), `inverse` (bool) | PNG — specific car part masked |
 | POST | `/edit-photo` | `file`, `prompt` (str), `edit_car` (bool), `size` (str) | PNG — AI-edited result |
 
-`/edit-photo` writes intermediate files to `output/image.png` and `output/mask.png` under `WORKING_DIR`, then calls `gpt-image-1` via the OpenAI API.
+`/edit-photo` writes intermediate files to `output/image.png` and `output/mask.png`, then calls `gpt-image-1` via the OpenAI API.
 
 ## ML Pipeline
 
@@ -68,16 +54,17 @@ Binary mask
     └─ (car-part-segmentation) → YOLOv11seg detects part within car bbox → SAM mask → apply
 ```
 
-## Docker
+**`apply_binary_mask_for_inpainting()` steps** (`utils.py`):
+1. Resize image to `size` (e.g., `1024x1536`) if provided
+2. Save `output/image.png`
+3. Threshold mask → binary
+4. Invert mask if `inverse=True`
+5. GaussianBlur 5×5 for soft edges
+6. Convert to RGBA; alpha channel = mask
+7. Save `output/mask.png`
+8. Return numpy RGBA array
 
-The Docker image is large (~5–10 GB) due to PyTorch + CUDA. GPU access is required at runtime.
-
-```bash
-docker build -t car-segmentation-ms ./car-segmentation-ms
-docker run --gpus all -p 8000:8000 \
-  -e OPENAI_API_KEY=sk-... \
-  -e WORKING_DIR=/app \
-  car-segmentation-ms
-```
-
-Use `nvidia/cuda` base image in the Dockerfile for GPU support. Without GPU, inference falls back to CPU (very slow).
+**Failure modes:**
+- No car detected by YOLOv10n → HTTP 400: `"No cars detected in the image"`
+- CUDA unavailable → silently falls back to CPU (inference is significantly slower)
+- OpenAI API error → propagates as HTTP 500

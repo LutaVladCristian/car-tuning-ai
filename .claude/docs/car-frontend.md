@@ -4,56 +4,89 @@ React 19 + TypeScript SPA. Communicates with `car-backend-ms` via Axios; JWT sto
 
 **Port:** 5173 (dev) | **Bundler:** Vite 8
 
-## Commands
+## Commands and environment variables
 
-```bash
-cd car-frontend
-
-npm run dev       # dev server at port 5173
-npm run build     # tsc -b && vite build → dist/
-npm run lint      # eslint .
-npm test          # vitest run
-npm run preview   # serve dist/ locally
-```
+See [README.md](../../README.md) for commands.
 
 Frontend unit tests use Vitest and currently cover prompt construction and tuning reducer behavior. PR checks run `npm run lint`, `npm test`, and `npm run build`.
 
 **Env:** `VITE_API_BASE_URL` is read from the root `.env` via `vite.config.ts` (`envDir: '..'`). No separate `car-frontend/.env` needed.
 
+## Structure
+
+```
+car-frontend/src/
+├── main.tsx                        # React 19 entry, mounts to #root
+├── App.tsx                         # BrowserRouter + route definitions
+├── index.css                       # Global styles (TailwindCSS)
+├── api/
+│   ├── client.ts                   # Axios instance; JWT interceptor; 401 → /login redirect
+│   ├── auth.ts                     # register(), login()
+│   ├── photos.ts                   # getPhotos(), getPhotoBlob()
+│   └── segmentation.ts             # editPhoto(), carSegmentation(), carPartSegmentation()
+├── context/
+│   ├── AuthContext.tsx             # AuthProvider; reads/writes localStorage
+│   ├── authContextCore.ts
+│   └── useAuth.ts
+├── hooks/
+│   ├── useEditPhoto.ts             # Submit + 500 ms polling loop (max 10 retries = 5 s)
+│   └── usePhotoHistory.ts
+├── lib/
+│   ├── promptBuilder.ts            # buildPrompt(TuningFormState) → string
+│   └── promptBuilder.test.ts
+├── types/
+│   ├── auth.ts
+│   ├── photo.ts
+│   └── tuning.ts                   # EditTarget, PaintFinish, CarEditState, BackgroundEditState, TuningFormState
+├── pages/
+│   ├── LoginPage.tsx
+│   ├── SignUpPage.tsx
+│   └── TuningPage.tsx              # Owns all form state via useReducer
+└── components/
+    ├── layout/
+    │   ├── AppShell.tsx
+    │   └── ProtectedRoute.tsx
+    ├── auth/
+    │   ├── LoginForm.tsx
+    │   └── SignUpForm.tsx
+    ├── tuning/
+    │   ├── TuningForm.tsx
+    │   ├── TuningForm.test.ts
+    │   ├── tuningReducer.ts        # 9 action types; all clear customPromptOverride except SET_CUSTOM_PROMPT
+    │   ├── ImageSelector.tsx
+    │   ├── TargetSelector.tsx
+    │   ├── car/
+    │   │   ├── ColorPicker.tsx
+    │   │   ├── BodyModPanel.tsx
+    │   │   └── CosmeticPanel.tsx
+    │   └── background/
+    │       ├── EnvironmentPicker.tsx
+    │       ├── TimePicker.tsx
+    │       ├── WeatherPicker.tsx
+    │       └── StylePicker.tsx
+    ├── prompt/
+    │   └── PromptPreview.tsx
+    └── results/
+        ├── ResultDisplay.tsx
+        └── PhotoHistoryPanel.tsx
+```
+
 ## Routes
 
-| Path | Component | Auth |
-|---|---|---|
-| `/login` | LoginPage | Public |
-| `/signup` | SignUpPage | Public |
-| `/` | TuningPage (inside AppShell) | Protected (JWT required) |
-| `/*` | Redirect to `/` | — |
+| Path | Component | Protected | Notes |
+|------|-----------|-----------|-------|
+| `/login` | `LoginPage` | No | |
+| `/signup` | `SignUpPage` | No | |
+| `/` | `TuningPage` (inside `AppShell`) | Yes — via `ProtectedRoute` | Main editing interface |
+| `*` | Redirect → `/` | — | Catch-all |
 
 ## Key Modules
 
 ### State — `TuningPage`
 
-`TuningPage` owns the entire form state via `useReducer`. `TuningFormState` holds: image selection, target (car vs background), color/mods/cosmetics, environment/time/weather/style pickers, `customPromptOverride`, and result status.
+`TuningPage` owns the entire form state via `useReducer` + `tuningReducer`. `TuningFormState` holds: image selection, target (car vs background), color/mods/cosmetics, environment/time/weather/style pickers, and `customPromptOverride`.
 
-```
-TuningPage (useReducer → TuningFormState)
-├── ImageSelector        — upload file OR pick from photo history
-├── TuningForm           — dispatches TuningAction
-│   ├── TargetSelector   — "Edit Car" / "Edit Background"
-│   ├── [Car mode]
-│   │   ├── ColorPicker  — swatches + text + finish
-│   │   ├── BodyModPanel — spoiler, rims, body kit, stance
-│   │   └── CosmeticPanel— tint, lighting, vinyl wrap
-│   └── [Background mode]
-│       ├── EnvironmentPicker — urban/mountain/track/beach/industrial
-│       ├── TimePicker        — day/sunset/night/dawn
-│       ├── WeatherPicker     — clear/rain/snow/fog
-│       └── StylePicker       — static/action/three-quarter/dramatic
-├── PromptPreview        — live assembled prompt; manually editable
-├── Submit → useEditPhoto.submit()
-├── ResultDisplay        — idle / submitting / polling / success / error
-└── PhotoHistoryPanel    — paginated history; click to reuse as input
-```
+`tuningReducer.ts` handles 9 action types: `SET_TARGET`, `SET_CAR_COLOR`, `SET_CAR_FINISH`, `SET_CAR_FIELD`, `SET_BG_FIELD`, `TOGGLE_BODY_KIT`, `TOGGLE_LIGHTING`, `SET_CUSTOM_PROMPT`, `RESET_PROMPT_OVERRIDE`, `RESET_FORM`. All dispatches except `SET_CUSTOM_PROMPT` reset `customPromptOverride` to `undefined` so the prompt rebuilds from form state automatically.
 
 ### Prompt Builder — `src/lib/promptBuilder.ts`
 
@@ -67,30 +100,9 @@ Axios instance with JWT interceptor that reads from `AuthContext`. Modules: `aut
 
 1. Snapshot `GET /photos` total count
 2. `POST /edit-photo` (up to 180 s — OpenAI processing)
-3. Poll `GET /photos?limit=1` until `total` increases
+3. Poll `GET /photos?limit=1` every 500 ms (max 10 retries = 5 s window) until `total` increases
 4. Fetch new photo via `GET /photos/{id}` → display
 
 ### Auth — `src/context/AuthContext.tsx`
 
 JWT stored in `localStorage`. `AuthContext` provides `user`, `login()`, `logout()`. `ProtectedRoute` wraps the `/` route.
-
-## Design Tokens (dark automotive theme)
-
-| Token | Value | Usage |
-|---|---|---|
-| `surface-900` | `#0A0A0A` | Page background |
-| `surface-800` | `#111111` | Cards/panels |
-| `surface-700` | `#1C1C1E` | Inputs |
-| `surface-600` | `#2C2C2E` | Borders |
-| `accent-blue` | `#3B82F6` | "Edit Car" mode |
-| `accent-orange` | `#F97316` | "Edit Background" mode |
-
-## Docker
-
-```bash
-# Build static assets and serve with nginx
-docker build -t car-frontend ./car-frontend
-docker run -p 80:80 car-frontend
-```
-
-Set `VITE_API_BASE_URL` as a build arg or bake it in before `npm run build`.
