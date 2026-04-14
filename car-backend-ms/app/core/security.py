@@ -4,6 +4,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from config import get_settings
+import secrets
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -15,17 +16,18 @@ def hash_password(plain: str) -> str:
 def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
+JWT_SECRET_KEY=secrets.token_hex(32)
 
 def create_access_token(subject: str) -> str:
     settings = get_settings()
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
     payload = {"sub": subject, "exp": expire}
-    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm="HS256")
+    return jwt.encode(payload, JWT_SECRET_KEY, algorithm="HS256")
 
 
 def decode_access_token(token: str) -> str:
     settings = get_settings()
-    payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=["HS256"])
+    payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
     sub: str = payload.get("sub")
     if sub is None:
         raise JWTError("Missing subject in token")
