@@ -18,19 +18,6 @@ cp .env.example .env
 
 Edit `.env` at the repo root. See `.env.example` for all required variables and their descriptions.
 
-## Cloud Dev Deployment
-
-The selected dev hosting plan is documented in `docs/dev-gcp-architecture.md`.
-
-Summary:
-
-- Cloud Run hosts `car-frontend` and `car-backend-ms`.
-- A private Compute Engine GPU VM hosts `car-segmentation-ms`.
-- Cloud SQL PostgreSQL stores application metadata.
-- Cloud Storage stores original/result images and model weights.
-- Firebase / Google Identity Platform replaces the custom username/password auth flow.
-- GitHub Actions uses Workload Identity Federation for dev CI/CD.
-
 ## Model Weights
 
 Download and place the following files under `car-segmentation-ms/model/`:
@@ -69,11 +56,13 @@ alembic upgrade head
 
 ## Tests
 
+Dev dependencies (pytest, pytest-asyncio, ruff) are included in the conda environments, so no separate install step is needed after `conda env create`.
+
 Backend unit tests:
 
 ```bash
+conda activate car-backend-ms
 cd car-backend-ms
-pip install -r requirements.txt -r requirements-dev.txt
 pytest --tb=short -q
 ```
 
@@ -87,8 +76,8 @@ npm test
 Segmentation unit tests use lightweight test doubles for SAM/YOLO so they do not require GPU or model weights:
 
 ```bash
+conda activate sam-microservice
 cd car-segmentation-ms
-pip install -r requirements-dev.txt
 pytest --tb=short -q
 ```
 

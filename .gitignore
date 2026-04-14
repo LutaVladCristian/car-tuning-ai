@@ -61,10 +61,3 @@ car-segmentation-ms/output/
 car-backend-ms/*.db
 # Frontend production build
 car-frontend/dist/
-
-# Terraform local state and secret variables
-**/.terraform/
-*.tfstate
-*.tfstate.*
-*.tfvars
-!*.tfvars.example

@@ -8,7 +8,7 @@ An AI-powered car image manipulation platform. Users upload car photos, isolate 
 
 ```
 Browser (car-frontend, port 5173)
-    │  JWT in Authorization header
+    │  Use Firebase Authentification
     ▼
 car-backend-ms  (port 8001)   ← JWT auth, DB blob storage, photo history
     │
@@ -16,8 +16,15 @@ car-backend-ms  (port 8001)   ← JWT auth, DB blob storage, photo history
 car-segmentation-ms  (port 8000)  ← ML inference (YOLO + SAM + OpenAI)
     │
     ▼
-PostgreSQL / SQLite
+PostgreSQL
 ```
+
+React + TypeScript frontend → Firebase Hosting
+Python backend API → Cloud Run
+Python microservice → Cloud Run
+Persistent database → Cloud SQL for PostgreSQL
+User authentication → Firebase Authentication / Identity Platform with Google Sign-In
+API keys / model secrets → Secret Manager
 
 ## Service Docs
 
