@@ -8,7 +8,3 @@ ignore = ["E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["app", "config", "dependencies"]
-
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-testpaths = ["."]
