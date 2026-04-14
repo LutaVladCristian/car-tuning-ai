@@ -44,6 +44,61 @@ describe('buildPrompt', () => {
     expect(prompt).toContain('Use the provided mask to restrict changes to the car body only');
   });
 
+  it('returns the default enhancement prompt when no car options are set', () => {
+    const prompt = buildPrompt(makeState({ target: 'car' }));
+    expect(prompt).toContain('Enhance the car in this photograph with photorealistic quality');
+    expect(prompt).toContain('Use the provided mask to restrict changes to the car body only');
+    expect(prompt).not.toContain('Repaint');
+  });
+
+  it('builds a car prompt with only color and finish set', () => {
+    const prompt = buildPrompt(
+      makeState({ target: 'car', car: { ...DEFAULT_FORM_STATE.car, color: 'pearl white', finish: 'special' } })
+    );
+    expect(prompt).toContain('special-effect pearl white paint');
+    expect(prompt).not.toContain('spoiler');
+    expect(prompt).not.toContain('body kit');
+  });
+
+  it('builds a car prompt with only cosmetics set (no color or body mods)', () => {
+    const prompt = buildPrompt(
+      makeState({
+        target: 'car',
+        car: {
+          ...DEFAULT_FORM_STATE.car,
+          windowTint: '20% limo tint',
+          lighting: ['LED strips', 'halo headlights'],
+          vinylWrap: 'carbon fibre',
+        },
+      })
+    );
+    expect(prompt).toContain('20% limo tint window tint');
+    expect(prompt).toContain('LED strips, halo headlights');
+    expect(prompt).toContain('carbon fibre vinyl wrap');
+    expect(prompt).not.toContain('Repaint');
+  });
+
+  it('omits rim finish from the prompt when rimFinish is null', () => {
+    const prompt = buildPrompt(
+      makeState({
+        target: 'car',
+        car: { ...DEFAULT_FORM_STATE.car, rimSize: '18-inch', rimStyle: 'split-spoke', rimFinish: null },
+      })
+    );
+    expect(prompt).toContain('18-inch split-spoke wheels');
+    expect(prompt).not.toContain('with null finish');
+  });
+
+  it('builds the default background prompt using default scene options', () => {
+    // DEFAULT_BACKGROUND_STATE: urban / sunset / clear / static
+    const prompt = buildPrompt(makeState({ target: 'background' }));
+    expect(prompt).toContain('photorealistic urban city street');
+    expect(prompt).toContain('golden hour sunset');
+    expect(prompt).toContain('clear sky');
+    expect(prompt).toContain('clean static display shot');
+    expect(prompt).toContain('Keep the car exactly as it is');
+  });
+
   it('builds a background replacement prompt from scene settings', () => {
     const prompt = buildPrompt(
       makeState({

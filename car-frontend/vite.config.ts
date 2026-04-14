@@ -6,4 +6,8 @@ export default defineConfig({
   plugins: [react()],
   // Read env vars from the repo root .env instead of car-frontend/.env
   envDir: '..',
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/test-setup.ts'],
+  },
 })

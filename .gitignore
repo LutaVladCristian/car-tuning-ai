@@ -39,6 +39,7 @@ car-frontend/dist/
 # EDITOR & OS
 # =============================================================================
 .vscode/
+.claude/settings.local.json
 !.vscode/extensions.json
 .idea/
 .DS_Store

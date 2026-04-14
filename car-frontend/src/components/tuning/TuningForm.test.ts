@@ -54,4 +54,78 @@ describe('tuningReducer', () => {
     expect(next.background).toEqual(DEFAULT_FORM_STATE.background);
     expect(next.customPromptOverride).toBeNull();
   });
+
+  it('sets car color and clears custom prompt override', () => {
+    const next = tuningReducer(
+      makeState({ customPromptOverride: 'old prompt' }),
+      { type: 'SET_CAR_COLOR', value: 'midnight blue' }
+    );
+
+    expect(next.car.color).toBe('midnight blue');
+    expect(next.customPromptOverride).toBeNull();
+  });
+
+  it('sets car finish and clears custom prompt override', () => {
+    const next = tuningReducer(
+      makeState({ customPromptOverride: 'old prompt' }),
+      { type: 'SET_CAR_FINISH', value: 'matte' }
+    );
+
+    expect(next.car.finish).toBe('matte');
+    expect(next.customPromptOverride).toBeNull();
+  });
+
+  it('sets an arbitrary car field and clears custom prompt override', () => {
+    const next = tuningReducer(
+      makeState({ customPromptOverride: 'old prompt' }),
+      { type: 'SET_CAR_FIELD', field: 'spoiler', value: 'GT wing' }
+    );
+
+    expect(next.car.spoiler).toBe('GT wing');
+    expect(next.customPromptOverride).toBeNull();
+  });
+
+  it('sets a background field and clears custom prompt override', () => {
+    const next = tuningReducer(
+      makeState({ customPromptOverride: 'old prompt' }),
+      { type: 'SET_BG_FIELD', field: 'timeOfDay', value: 'night' }
+    );
+
+    expect(next.background.timeOfDay).toBe('night');
+    expect(next.customPromptOverride).toBeNull();
+  });
+
+  it('toggles lighting selections without mutating existing state', () => {
+    const initial = makeState({
+      car: { ...DEFAULT_FORM_STATE.car, lighting: ['halo headlights'] },
+    });
+
+    const added = tuningReducer(initial, { type: 'TOGGLE_LIGHTING', value: 'underglow' });
+    const removed = tuningReducer(added, { type: 'TOGGLE_LIGHTING', value: 'halo headlights' });
+
+    expect(initial.car.lighting).toEqual(['halo headlights']);
+    expect(added.car.lighting).toEqual(['halo headlights', 'underglow']);
+    expect(removed.car.lighting).toEqual(['underglow']);
+  });
+
+  it('sets custom prompt override without clearing it', () => {
+    const next = tuningReducer(
+      makeState(),
+      { type: 'SET_CUSTOM_PROMPT', value: 'make it aggressive' }
+    );
+
+    expect(next.customPromptOverride).toBe('make it aggressive');
+  });
+
+  it('clears only the custom prompt override on RESET_PROMPT_OVERRIDE', () => {
+    const initial = makeState({
+      car: { ...DEFAULT_FORM_STATE.car, color: 'red' },
+      customPromptOverride: 'some prompt',
+    });
+
+    const next = tuningReducer(initial, { type: 'RESET_PROMPT_OVERRIDE' });
+
+    expect(next.customPromptOverride).toBeNull();
+    expect(next.car.color).toBe('red');
+  });
 });
