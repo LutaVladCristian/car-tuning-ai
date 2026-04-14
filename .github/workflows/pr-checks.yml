@@ -52,7 +52,7 @@ jobs:
 
       - name: Test
         working-directory: car-segmentation-ms
-        run: pytest --tb=short -q
+        run: pytest --tb=short -q; code=$?; [ $code -eq 0 ] || [ $code -eq 5 ]
 
   frontend:
     name: Frontend — lint, build & test

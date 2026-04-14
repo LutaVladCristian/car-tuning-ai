@@ -1,17 +1,16 @@
 import sys
-from pathlib import Path
 from logging.config import fileConfig
-
-from sqlalchemy import engine_from_config, pool
+from pathlib import Path
 
 from alembic import context
+from sqlalchemy import engine_from_config, pool
 
 # Make sure the project root is on the path so config.py and app/ are importable
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from config import get_settings
-from app.db.base import Base
 import app.db.models  # noqa: F401 — registers all models with Base.metadata
+from app.db.base import Base
+from config import get_settings
 
 config = context.config
 fileConfig(config.config_file_name)

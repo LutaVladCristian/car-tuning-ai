@@ -1,8 +1,8 @@
-import enum
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from enum import StrEnum
+from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, JSON, LargeBinary, String, func
+from sqlalchemy import JSON, DateTime, Enum, ForeignKey, Integer, LargeBinary, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from app.db.models.user import User
 
 
-class OperationType(str, enum.Enum):
+class OperationType(StrEnum):
     car_segmentation = "car_segmentation"
     car_part_segmentation = "car_part_segmentation"
     edit_photo = "edit_photo"
@@ -26,11 +26,11 @@ class Photo(Base):
     )
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     original_image: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
-    result_image: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
+    result_image: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     operation_type: Mapped[OperationType] = mapped_column(
         Enum(OperationType), nullable=False
     )
-    operation_params: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    operation_params: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

@@ -1,9 +1,11 @@
-from segment_anything import sam_model_registry, SamPredictor
-from ultralytics import YOLO
+import os
+
 import cv2
 import numpy as np
-import os
 from PIL import Image
+from segment_anything import SamPredictor, sam_model_registry
+from ultralytics import YOLO
+
 
 def initialize_sam_model(checkpoint_path, model_type, device):
     """Initialize the SAM model."""
@@ -27,10 +29,16 @@ def apply_binary_mask_for_inpainting(image, mask, output_dir, inverse=False, siz
 
     os.makedirs(output_dir, exist_ok=True)
 
-    if size:
-        photo_size = tuple(map(int, size.split("x")))
-        print(photo_size)
-        image = cv2.resize(image, photo_size)
+    if size and size != "auto":
+        # M1: validate format and cap dimensions before resizing.
+        parts = size.split("x")
+        if len(parts) != 2:
+            raise ValueError(f"Invalid size format {size!r}. Expected WxH (e.g. '1024x1536').")
+        w, h = int(parts[0]), int(parts[1])
+        _MAX_DIM = 4096
+        if not (1 <= w <= _MAX_DIM and 1 <= h <= _MAX_DIM):
+            raise ValueError(f"Dimensions {w}x{h} out of range. Each must be 1–{_MAX_DIM}.")
+        image = cv2.resize(image, (w, h))
 
     # Save the original image
     cv2.imwrite(os.path.join(output_dir, "image.png"), image)

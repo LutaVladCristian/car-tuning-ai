@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/useAuth';
-import { AxiosError } from 'axios';
+import { parseApiError } from '../../lib/parseApiError';
 
 export default function LoginForm() {
   const { login } = useAuth();
@@ -19,8 +19,7 @@ export default function LoginForm() {
       await login({ username, password });
       navigate('/');
     } catch (err) {
-      const axiosErr = err as AxiosError<{ detail: string }>;
-      setError(axiosErr.response?.data?.detail ?? 'Invalid username or password.');
+      setError(parseApiError(err, 'Invalid username or password.'));
     } finally {
       setIsLoading(false);
     }

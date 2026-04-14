@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel
 
@@ -11,7 +10,7 @@ class PhotoResponse(BaseModel):
     user_id: int
     original_filename: str
     operation_type: OperationType
-    operation_params: Optional[dict] = None
+    operation_params: dict | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

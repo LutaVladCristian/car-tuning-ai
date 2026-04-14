@@ -25,9 +25,17 @@ export default function ResultDisplay({ status, resultPhotoId, error, onReset }:
     if (status !== 'success' || resultPhotoId === null) return;
 
     let isActive = true;
+    let blobUrl: string | null = null;
+
     getPhotoUrl(resultPhotoId)
       .then((url) => {
-        if (isActive) setImgResult({ photoId: resultPhotoId, url });
+        if (isActive) {
+          blobUrl = url;
+          setImgResult({ photoId: resultPhotoId, url });
+        } else {
+          // H11: Discard immediately if the effect was already cleaned up.
+          URL.revokeObjectURL(url);
+        }
       })
       .catch(() => {
         if (isActive) setImgResult({ photoId: resultPhotoId, url: null });
@@ -35,6 +43,8 @@ export default function ResultDisplay({ status, resultPhotoId, error, onReset }:
 
     return () => {
       isActive = false;
+      // H11: Revoke the blob URL when resultPhotoId changes or component unmounts.
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
   }, [status, resultPhotoId]);
 

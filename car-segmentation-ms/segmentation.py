@@ -1,25 +1,33 @@
-import numpy as np
+
+from pathlib import Path
+
 import cv2
+import numpy as np
 import torch
-import os
-from dotenv import load_dotenv, find_dotenv
+from dotenv import find_dotenv, load_dotenv
 
 load_dotenv(find_dotenv())
 
-from utils import initialize_sam_model, initialize_yolo_model, apply_binary_mask_for_inpainting
+from utils import (  # noqa: E402
+    apply_binary_mask_for_inpainting,
+    initialize_sam_model,
+    initialize_yolo_model,
+)
 
+# H2: Use absolute paths derived from this file's location so the service
+# starts correctly regardless of the working directory.
+_HERE = Path(__file__).parent
 
-# Resolve working directory from env; fall back to the directory of this file
-working_dir = 'output'
+working_dir = str(_HERE / "output")
 
 # Define device
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Constants for initialization
-SAM_CHECKPOINT_PATH = "model/sam_vit_b_01ec64.pth"
+SAM_CHECKPOINT_PATH = str(_HERE / "model" / "sam_vit_b_01ec64.pth")
 SAM_MODEL_TYPE = "vit_b"
-YOLO_SEG_MODEL_PATH = 'model/yolov11seg.pt'
-YOLO_DETECTION_MODEL_PATH = 'model/yolov10n.pt'
+YOLO_SEG_MODEL_PATH = str(_HERE / "model" / "yolov11seg.pt")
+YOLO_DETECTION_MODEL_PATH = str(_HERE / "model" / "yolov10n.pt")
 
 # Initialize models
 sam_predictor = initialize_sam_model(SAM_CHECKPOINT_PATH, SAM_MODEL_TYPE, DEVICE)
@@ -27,12 +35,18 @@ yolo_segmentation_model = initialize_yolo_model(YOLO_SEG_MODEL_PATH, DEVICE)
 yolo_detection_model = initialize_yolo_model(YOLO_DETECTION_MODEL_PATH, DEVICE)
 
 
-def segment_car(content, inverse=True, size="1024x1536"):
-    """Segment cars from an input image."""
-    # Decode binary content into a NumPy array
+def segment_car(content, inverse=True, size=None, output_dir=None):
+    """Segment cars from an input image.
+
+    Args:
+        output_dir: Directory for intermediate files. Defaults to the module-level
+                    working_dir. Pass a per-request temp dir to avoid race conditions
+                    under concurrent load (C3).
+    """
+    if output_dir is None:
+        output_dir = working_dir
 
     file_bytes = np.frombuffer(content, np.uint8)
-
     img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
     if img is None:
@@ -42,8 +56,9 @@ def segment_car(content, inverse=True, size="1024x1536"):
     results_yolo = yolo_detection_model.predict(img, classes=[2], conf=0.75)
     boxes_yolo = results_yolo[0].boxes.xyxy if len(results_yolo) > 0 else []
 
+    # H1: raise instead of returning a dict so callers get a clean 400 response.
     if len(boxes_yolo) == 0:
-        return {"message": "No cars detected in image."}
+        raise ValueError("No cars detected in image.")
 
     sam_predictor.set_image(img)
 
@@ -64,13 +79,14 @@ def segment_car(content, inverse=True, size="1024x1536"):
     mask_np = np.squeeze(mask_np)  # shape: (H, W)
     mask_np = (mask_np * 255).astype(np.uint8)
 
-    return apply_binary_mask_for_inpainting(img, mask_np, working_dir, inverse, size)
+    return apply_binary_mask_for_inpainting(img, mask_np, output_dir, inverse, size)
 
 
-def segment_car_part(content, target_class_id=22, inverse=False, size="1024x1536"):
+def segment_car_part(content, target_class_id=22, inverse=False, size=None, output_dir=None):
     """Run YOLOv11 segmentation and save mask for a specific class (e.g., wheels, lights, etc.)."""
+    if output_dir is None:
+        output_dir = working_dir
 
-    # Decode the image from binary content
     file_bytes = np.frombuffer(content, np.uint8)
     img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
@@ -82,7 +98,8 @@ def segment_car_part(content, target_class_id=22, inverse=False, size="1024x1536
 
     # Check if masks are present
     if not hasattr(results[0], "masks") or results[0].masks is None:
-        return {"message": "No segmentation masks found."}
+        # H1: raise instead of returning a dict
+        raise ValueError("No segmentation masks found.")
 
     masks = results[0].masks.data.cpu().numpy()      # shape: (N, H, W)
     classes = results[0].boxes.cls.cpu().numpy()     # shape: (N,)
@@ -98,4 +115,4 @@ def segment_car_part(content, target_class_id=22, inverse=False, size="1024x1536
     # Convert boolean mask to uint8
     mask_np = (class_mask * 255).astype(np.uint8)
 
-    return apply_binary_mask_for_inpainting(img, mask_np, working_dir, inverse, size)
+    return apply_binary_mask_for_inpainting(img, mask_np, output_dir, inverse, size)
