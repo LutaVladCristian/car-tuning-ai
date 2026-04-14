@@ -51,6 +51,7 @@ cd car-frontend && npm install
 ```bash
 conda activate car-backend-ms
 cd car-backend-ms
+alembic revision --autogenerate -m "<description>"
 alembic upgrade head
 ```
 
@@ -80,11 +81,6 @@ conda activate sam-microservice
 cd car-segmentation-ms
 pytest --tb=short -q
 ```
-
-PR checks run backend, frontend, and segmentation unit-test suites, frontend lint/build, backend Alembic migration checks against Postgres, Terraform validation, and Docker build smoke checks. The workflow directory is intentionally limited to:
-
-- `.github/workflows/pr-checks.yml` for pull-request checks.
-- `.github/workflows/deploy-dev.yml` for automatic dev deployment on `main`.
 
 ---
 

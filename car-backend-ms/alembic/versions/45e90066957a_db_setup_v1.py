@@ -1,8 +1,8 @@
-"""init
+"""db-setup-v1
 
-Revision ID: e08fd5ada90c
+Revision ID: 45e90066957a
 Revises: 
-Create Date: 2026-04-06 22:39:17.454764
+Create Date: 2026-04-14 13:24:46.345566
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'e08fd5ada90c'
+revision: str = '45e90066957a'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -53,8 +53,6 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_photos_user_id'), table_name='photos')
     op.drop_index(op.f('ix_photos_id'), table_name='photos')
     op.drop_table('photos')
-    if op.get_bind().dialect.name == 'postgresql':
-        op.execute('DROP TYPE IF EXISTS operationtype')
     op.drop_index(op.f('ix_users_username'), table_name='users')
     op.drop_index(op.f('ix_users_id'), table_name='users')
     op.drop_index(op.f('ix_users_email'), table_name='users')

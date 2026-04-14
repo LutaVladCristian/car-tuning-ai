@@ -68,8 +68,8 @@ async def edit_photo(
     content = await file.read()
     segment_car(content, edit_car, size)
 
-    image_path = os.path.join(working_dir, "output", "image.png")
-    mask_path = os.path.join(working_dir, "output", "mask.png")
+    image_path = os.path.join(working_dir, "image.png")
+    mask_path = os.path.join(working_dir, "mask.png")
 
     print(image_path)
     print(mask_path)
