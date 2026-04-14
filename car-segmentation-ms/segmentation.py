@@ -16,10 +16,10 @@ working_dir = 'output'
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Constants for initialization
-SAM_CHECKPOINT_PATH = "/model/sam_vit_b_01ec64.pth"
+SAM_CHECKPOINT_PATH = "model/sam_vit_b_01ec64.pth"
 SAM_MODEL_TYPE = "vit_b"
-YOLO_SEG_MODEL_PATH = '/model/yolov11seg.pt'
-YOLO_DETECTION_MODEL_PATH = '/model/yolov10n.pt'
+YOLO_SEG_MODEL_PATH = 'model/yolov11seg.pt'
+YOLO_DETECTION_MODEL_PATH = 'model/yolov10n.pt'
 
 # Initialize models
 sam_predictor = initialize_sam_model(SAM_CHECKPOINT_PATH, SAM_MODEL_TYPE, DEVICE)
