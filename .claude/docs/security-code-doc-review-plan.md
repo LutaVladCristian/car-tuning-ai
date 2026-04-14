@@ -44,9 +44,3 @@ Scope:
   - Segmentation pytest via the existing environment command if available.
   - Dependency audits such as `npm audit` and Python audit tooling if installed or approved for network access.
 - If a command cannot run because dependencies, envs, model files, network, or permissions are missing, record that limitation in the report instead of blocking the report.
-
-## Assumptions
-
-- The requested output directory means `.claude/docs/`, because that is the directory present in the repo.
-- The output file will be a new report file, not a modification of the excluded `.claude/docs/code-review.md`.
-- The report should suggest practical improvements, not implement code changes.
