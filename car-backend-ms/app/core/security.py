@@ -26,7 +26,8 @@ def create_access_token(subject: str) -> str:
 
 
 def decode_access_token(token: str) -> str:
-    payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
+    # H6: Explicitly require exp validation — some python-jose versions skip it by default.
+    payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"], options={"verify_exp": True})
     sub: str = payload.get("sub")
     if sub is None:
         raise JWTError("Missing subject in token")

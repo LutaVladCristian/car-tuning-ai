@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/useAuth';
-import { AxiosError } from 'axios';
+import { parseApiError } from '../../lib/parseApiError';
 
 export default function SignUpForm() {
   const { register } = useAuth();
@@ -20,13 +20,7 @@ export default function SignUpForm() {
       await register({ username, email, password });
       navigate('/login');
     } catch (err) {
-      const axiosErr = err as AxiosError<{ detail: string | { msg: string }[] }>;
-      const detail = axiosErr.response?.data?.detail;
-      if (Array.isArray(detail)) {
-        setError(detail.map((d) => d.msg).join(', '));
-      } else {
-        setError(detail ?? 'Registration failed. Please try again.');
-      }
+      setError(parseApiError(err, 'Registration failed. Please try again.'));
     } finally {
       setIsLoading(false);
     }

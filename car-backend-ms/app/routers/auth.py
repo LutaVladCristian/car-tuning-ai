@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.security import create_access_token, hash_password, verify_password
@@ -11,9 +12,15 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/register", response_model=RegisterResponse, status_code=201)
 async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> RegisterResponse:
-    if db.query(User).filter(User.username == payload.username).first():
-        raise HTTPException(status_code=409, detail="Username already taken")
-    if db.query(User).filter(User.email == payload.email).first():
+    # M5: Single query instead of two to avoid a TOCTOU window.
+    existing = (
+        db.query(User)
+        .filter(or_(User.username == payload.username, User.email == payload.email))
+        .first()
+    )
+    if existing:
+        if existing.username == payload.username:
+            raise HTTPException(status_code=409, detail="Username already taken")
         raise HTTPException(status_code=409, detail="Email already registered")
 
     user = User(

@@ -12,6 +12,10 @@ interface UseEditPhotoReturn {
   reset: () => void;
 }
 
+// M9: Named constants replace inline magic numbers.
+const POLL_INTERVAL_MS = 500;
+const POLL_MAX_RETRIES = 10;
+
 function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
@@ -38,8 +42,8 @@ export function useEditPhoto(onSuccess?: () => void): UseEditPhotoReturn {
         // Poll for the new DB record (insert is synchronous before response)
         setStatus('polling');
         let newId: number | null = null;
-        for (let i = 0; i < 10; i++) {
-          await sleep(500);
+        for (let i = 0; i < POLL_MAX_RETRIES; i++) {
+          await sleep(POLL_INTERVAL_MS);
           const after = await listPhotos(0, 1);
           if (after.total > beforeTotal) {
             newId = after.photos[0]?.id ?? null;

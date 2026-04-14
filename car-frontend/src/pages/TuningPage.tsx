@@ -47,7 +47,6 @@ export default function TuningPage() {
 
   const handleHistorySelect = (id: number) => {
     setSelectedHistoryPhotoId(id);
-    // Also use as result display when clicked from history panel
   };
 
   return (

@@ -28,7 +28,9 @@ export function usePhotoHistory(): UsePhotoHistoryReturn {
       const data = await listPhotos(offset, PAGE_SIZE);
       setPhotos((prev) => (replace ? data.photos : [...prev, ...data.photos]));
       setTotal(data.total);
-    } catch {
+    } catch (err) {
+      // H12: Log original error so it isn't silently swallowed.
+      console.error('Failed to load photo history:', err);
       setError('Failed to load photo history.');
     } finally {
       setIsLoading(false);

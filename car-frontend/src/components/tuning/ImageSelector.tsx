@@ -1,4 +1,4 @@
-import { useRef, useState, type DragEvent, type ChangeEvent } from 'react';
+import { useRef, useState, useEffect, useMemo, type DragEvent, type ChangeEvent } from 'react';
 import type { ImageSourceType } from '../../types/tuning';
 import type { PhotoResponse } from '../../types/photo';
 
@@ -23,10 +23,30 @@ export default function ImageSelector({
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const previewUrl = uploadedFile ? URL.createObjectURL(uploadedFile) : null;
+  const [sizeError, setSizeError] = useState<string | null>(null);
+
+  // H10: Derive the blob URL from uploadedFile so it is only created once per
+  // file. A cleanup effect revokes the URL whenever it changes or the component
+  // unmounts, preventing a memory leak on every upload.
+  const previewUrl = useMemo(
+    () => (uploadedFile ? URL.createObjectURL(uploadedFile) : null),
+    [uploadedFile],
+  );
+  useEffect(() => {
+    return () => { if (previewUrl) URL.revokeObjectURL(previewUrl); };
+  }, [previewUrl]);
+
+  // M10: Reject files larger than 10 MB before sending to the API.
+  const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
   const handleFile = (file: File) => {
-    if (file.type.startsWith('image/')) onFileUpload(file);
+    if (!file.type.startsWith('image/')) return;
+    if (file.size > MAX_FILE_BYTES) {
+      setSizeError('File is too large. Maximum size is 10 MB.');
+      return;
+    }
+    setSizeError(null);
+    onFileUpload(file);
   };
 
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
@@ -70,6 +90,10 @@ export default function ImageSelector({
           From history ({historyPhotos.length})
         </button>
       </div>
+
+      {sizeError && (
+        <p className="text-red-400 text-xs">{sizeError}</p>
+      )}
 
       {imageSource === 'upload' && (
         <div

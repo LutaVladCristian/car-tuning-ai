@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers import auth, photos, segmentation
+from config import get_settings
 
 app = FastAPI(
     title="Car Tuning AI — Backend MS",
@@ -9,12 +10,16 @@ app = FastAPI(
     description="Authenticated gateway for car-segmentation-ms with photo history.",
 )
 
+settings = get_settings()
+
+# C7: Origins read from env so production URLs need no code change.
+# L1: Restrict to the methods and headers the frontend actually uses.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 app.include_router(auth.router)

@@ -29,16 +29,23 @@ export default function PromptPreview({ prompt, isOverridden, onChange, onReset 
           )}
         </div>
       </div>
+      {/* M13: Cap at 1000 chars to match the backend limit and show remaining count. */}
       <textarea
         value={prompt}
         onChange={(e) => onChange(e.target.value)}
         rows={4}
+        maxLength={1000}
         className="w-full bg-surface-700 border border-surface-600 rounded-lg px-4 py-3 text-zinc-300 font-mono text-xs resize-y focus:outline-none focus:border-accent-blue transition-colors leading-relaxed"
         placeholder="Select options above to generate a prompt..."
       />
-      <p className="text-zinc-600 text-xs">
-        Edit freely — or reset to let selections rebuild it automatically.
-      </p>
+      <div className="flex justify-between">
+        <p className="text-zinc-600 text-xs">
+          Edit freely — or reset to let selections rebuild it automatically.
+        </p>
+        <p className={`text-xs ${prompt.length >= 950 ? 'text-accent-orange' : 'text-zinc-600'}`}>
+          {prompt.length}/1000
+        </p>
+      </div>
     </div>
   );
 }
