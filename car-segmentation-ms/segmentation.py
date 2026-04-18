@@ -24,14 +24,12 @@ working_dir = str(_HERE / "output")
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Constants for initialization
-SAM_CHECKPOINT_PATH = str(_HERE / "model" / "sam_vit_b_01ec64.pth")
-SAM_MODEL_TYPE = "vit_b"
-YOLO_SEG_MODEL_PATH = str(_HERE / "model" / "yolov11seg.pt")
-YOLO_DETECTION_MODEL_PATH = str(_HERE / "model" / "yolov10n.pt")
+SAM_CHECKPOINT_PATH = str(_HERE / "model" / "sam_vit_h_4b8939.pth")
+SAM_MODEL_TYPE = "vit_h"
+YOLO_DETECTION_MODEL_PATH = str(_HERE / "model" / "yolov11n.pt")
 
 # Initialize models
 sam_predictor = initialize_sam_model(SAM_CHECKPOINT_PATH, SAM_MODEL_TYPE, DEVICE)
-yolo_segmentation_model = initialize_yolo_model(YOLO_SEG_MODEL_PATH, DEVICE)
 yolo_detection_model = initialize_yolo_model(YOLO_DETECTION_MODEL_PATH, DEVICE)
 
 
@@ -78,41 +76,5 @@ def segment_car(content, inverse=True, size=None, output_dir=None):
     mask_np = car_mask[0][0].cpu().numpy()  # shape: (1, H, W) -> need squeeze
     mask_np = np.squeeze(mask_np)  # shape: (H, W)
     mask_np = (mask_np * 255).astype(np.uint8)
-
-    return apply_binary_mask_for_inpainting(img, mask_np, output_dir, inverse, size)
-
-
-def segment_car_part(content, target_class_id=22, inverse=False, size=None, output_dir=None):
-    """Run YOLOv11 segmentation and save mask for a specific class (e.g., wheels, lights, etc.)."""
-    if output_dir is None:
-        output_dir = working_dir
-
-    file_bytes = np.frombuffer(content, np.uint8)
-    img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-
-    if img is None:
-        raise TypeError("Invalid image input. Ensure it is a valid image file.")
-
-    # Run YOLOv11 with segmentation task
-    results = yolo_segmentation_model.predict(img, conf=0.5, task='segment')
-
-    # Check if masks are present
-    if not hasattr(results[0], "masks") or results[0].masks is None:
-        # H1: raise instead of returning a dict
-        raise ValueError("No segmentation masks found.")
-
-    masks = results[0].masks.data.cpu().numpy()      # shape: (N, H, W)
-    classes = results[0].boxes.cls.cpu().numpy()     # shape: (N,)
-
-    # Initialize an empty mask
-    class_mask = np.zeros_like(masks[0], dtype=np.uint8)
-
-    # Combine masks for the target class(es)
-    for i, class_id in enumerate(classes):
-        if int(class_id) == target_class_id or (isinstance(target_class_id, list) and int(class_id) in target_class_id):
-            class_mask = np.logical_or(class_mask, masks[i])
-
-    # Convert boolean mask to uint8
-    mask_np = (class_mask * 255).astype(np.uint8)
 
     return apply_binary_mask_for_inpainting(img, mask_np, output_dir, inverse, size)

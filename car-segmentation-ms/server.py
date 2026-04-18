@@ -8,7 +8,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from openai import OpenAI
 from PIL import Image
-from segmentation import segment_car, segment_car_part, working_dir
+from segmentation import segment_car, working_dir
 
 # Initialize the FastAPI app
 app = FastAPI()
@@ -23,58 +23,6 @@ client = OpenAI(api_key=openai_key)
 
 # C2: Maximum prompt length accepted from clients.
 _MAX_PROMPT_LEN = 1000
-
-# M2: Valid range for car-part class IDs (YOLO COCO classes 0-79, with margin).
-_MAX_CAR_PART_ID = 200
-
-
-@app.post("/car-segmentation")
-async def car_segmentation_sam(
-    file: UploadFile = File(...),
-    inverse: bool = Form(...),
-):
-    content = await file.read()
-
-    # H1: segment_car raises ValueError when no car is detected.
-    try:
-        image_stream = segment_car(content, inverse)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-
-    image = Image.fromarray(image_stream.astype("uint8"))
-    buffer = io.BytesIO()
-    image.save(buffer, format="PNG")
-    buffer.seek(0)
-
-    return StreamingResponse(buffer, media_type="image/png")
-
-
-@app.post("/car-part-segmentation")
-async def segment_part(
-    file: UploadFile = File(...),
-    carPartId: int = Form(...),
-    inverse: bool = Form(...),
-):
-    # M2: Validate car part ID range.
-    if not (0 <= carPartId <= _MAX_CAR_PART_ID):
-        raise HTTPException(
-            status_code=422,
-            detail=f"carPartId must be between 0 and {_MAX_CAR_PART_ID}.",
-        )
-
-    content = await file.read()
-
-    try:
-        image_stream = segment_car_part(content, carPartId, inverse)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-
-    image = Image.fromarray(image_stream.astype("uint8"))
-    buffer = io.BytesIO()
-    image.save(buffer, format="PNG")
-    buffer.seek(0)
-
-    return StreamingResponse(buffer, media_type="image/png")
 
 
 @app.post("/edit-photo")

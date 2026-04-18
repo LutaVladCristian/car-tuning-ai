@@ -12,8 +12,6 @@ if TYPE_CHECKING:
 
 
 class OperationType(StrEnum):
-    car_segmentation = "car_segmentation"
-    car_part_segmentation = "car_part_segmentation"
     edit_photo = "edit_photo"
 
 

@@ -16,26 +16,6 @@ async def _forward(path: str, files: dict, data: dict, timeout: float) -> bytes:
         return resp.content
 
 
-async def forward_car_segmentation(content: bytes, filename: str, inverse: bool) -> bytes:
-    return await _forward(
-        "/car-segmentation",
-        {"file": (filename, content, "image/jpeg")},
-        {"inverse": str(inverse).lower()},
-        timeout=120.0,
-    )
-
-
-async def forward_car_part_segmentation(
-    content: bytes, filename: str, car_part_id: int, inverse: bool
-) -> bytes:
-    return await _forward(
-        "/car-part-segmentation",
-        {"file": (filename, content, "image/jpeg")},
-        {"carPartId": str(car_part_id), "inverse": str(inverse).lower()},
-        timeout=120.0,
-    )
-
-
 async def forward_edit_photo(
     content: bytes, filename: str, prompt: str, edit_car: bool, size: str
 ) -> bytes:
