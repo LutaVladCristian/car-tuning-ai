@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.pyo
+tests/
+.env
+*.db
+environment-local.yml
+.pytest_cache/
