@@ -1,49 +1,30 @@
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.auth import RegisterRequest, TokenResponse
+from app.schemas.auth import FirebaseAuthRequest, UserResponse
 
 
-class TestRegisterRequest:
-    def test_valid_payload_accepted(self):
-        req = RegisterRequest(username="alice", email="alice@example.com", password="secret99")
-        assert req.username == "alice"
-        assert req.email == "alice@example.com"
+class TestFirebaseAuthRequest:
+    def test_valid_token_accepted(self):
+        req = FirebaseAuthRequest(id_token="firebase-id-token-value")
+        assert req.id_token == "firebase-id-token-value"
 
-    def test_username_too_short_raises(self):
+    def test_missing_token_raises(self):
         with pytest.raises(ValidationError):
-            RegisterRequest(username="ab", email="a@b.com", password="secret99")
+            FirebaseAuthRequest()
 
-    def test_username_too_long_raises(self):
+
+class TestUserResponse:
+    def test_valid_response_accepted(self):
+        resp = UserResponse(id=1, firebase_uid="uid123", email="user@example.com", display_name="User")
+        assert resp.firebase_uid == "uid123"
+        assert resp.email == "user@example.com"
+        assert resp.display_name == "User"
+
+    def test_display_name_can_be_none(self):
+        resp = UserResponse(id=1, firebase_uid="uid123", email="user@example.com", display_name=None)
+        assert resp.display_name is None
+
+    def test_missing_required_fields_raises(self):
         with pytest.raises(ValidationError):
-            RegisterRequest(username="a" * 51, email="a@b.com", password="secret99")
-
-    def test_invalid_email_raises(self):
-        with pytest.raises(ValidationError):
-            RegisterRequest(username="alice", email="not-an-email", password="secret99")
-
-    def test_password_too_short_raises(self):
-        with pytest.raises(ValidationError):
-            RegisterRequest(username="alice", email="a@b.com", password="short")
-
-    def test_password_exactly_8_chars_accepted(self):
-        req = RegisterRequest(username="alice", email="a@b.com", password="exact123")
-        assert len(req.password) == 8
-
-    def test_username_exactly_3_chars_accepted(self):
-        req = RegisterRequest(username="abc", email="a@b.com", password="secret99")
-        assert req.username == "abc"
-
-    def test_username_exactly_50_chars_accepted(self):
-        req = RegisterRequest(username="a" * 50, email="a@b.com", password="secret99")
-        assert len(req.username) == 50
-
-
-class TestTokenResponse:
-    def test_default_token_type_is_bearer(self):
-        resp = TokenResponse(access_token="sometoken")
-        assert resp.token_type == "bearer"
-
-    def test_custom_token_type_accepted(self):
-        resp = TokenResponse(access_token="sometoken", token_type="custom")
-        assert resp.token_type == "custom"
+            UserResponse(display_name="User")

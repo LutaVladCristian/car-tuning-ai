@@ -1,35 +1,40 @@
-import { useState, type ReactNode } from 'react';
-import { loginUser, registerUser } from '../api/auth';
-import type { AuthUser, LoginRequest, RegisterRequest } from '../types/auth';
+import { useEffect, useState, type ReactNode } from 'react';
+import { onAuthStateChanged, signInWithPopup, signOut, type User as FirebaseUser } from 'firebase/auth';
+import { auth, googleProvider } from '../lib/firebase';
+import { syncFirebaseUser } from '../api/auth';
+import type { AuthUser } from '../types/auth';
 import { AuthContext } from './authContextCore';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    const token = localStorage.getItem('car_tuning_token');
-    const username = localStorage.getItem('car_tuning_username');
-    if (token && username) return { token, username };
-    return null;
-  });
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const login = async (credentials: LoginRequest) => {
-    const data = await loginUser(credentials);
-    localStorage.setItem('car_tuning_token', data.access_token);
-    localStorage.setItem('car_tuning_username', credentials.username);
-    setUser({ token: data.access_token, username: credentials.username });
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
+      setUser(
+        firebaseUser
+          ? { uid: firebaseUser.uid, email: firebaseUser.email, displayName: firebaseUser.displayName }
+          : null
+      );
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, []);
+
+  const login = async () => {
+    const result = await signInWithPopup(auth, googleProvider);
+    const idToken = await result.user.getIdToken();
+    await syncFirebaseUser(idToken);
   };
 
-  const logout = () => {
-    localStorage.removeItem('car_tuning_token');
-    localStorage.removeItem('car_tuning_username');
-    setUser(null);
+  const logout = async () => {
+    await signOut(auth);
   };
 
-  const register = async (data: RegisterRequest) => {
-    await registerUser(data);
-  };
+  if (loading) return null;
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout, register }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

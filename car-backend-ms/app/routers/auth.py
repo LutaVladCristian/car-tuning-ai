@@ -1,44 +1,38 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import or_
+from firebase_admin.exceptions import FirebaseError
 from sqlalchemy.orm import Session
 
-from app.core.security import create_access_token, hash_password, verify_password
+from app.core.security import verify_firebase_token
 from app.db.models.user import User
-from app.schemas.auth import LoginRequest, RegisterRequest, RegisterResponse, TokenResponse
+from app.schemas.auth import FirebaseAuthRequest, UserResponse
 from dependencies import get_db
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/register", response_model=RegisterResponse, status_code=201)
-async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> RegisterResponse:
-    # M5: Single query instead of two to avoid a TOCTOU window.
-    existing = (
-        db.query(User)
-        .filter(or_(User.username == payload.username, User.email == payload.email))
-        .first()
-    )
-    if existing:
-        if existing.username == payload.username:
-            raise HTTPException(status_code=409, detail="Username already taken")
-        raise HTTPException(status_code=409, detail="Email already registered")
+@router.post("/firebase", response_model=UserResponse)
+async def firebase_auth(
+    payload: FirebaseAuthRequest, db: Session = Depends(get_db)
+) -> UserResponse:
+    """Exchange a Firebase ID token for a synced backend user record."""
+    try:
+        claims = verify_firebase_token(payload.id_token)
+    except FirebaseError as exc:
+        raise HTTPException(status_code=401, detail=f"Invalid Firebase token: {exc}")
 
-    user = User(
-        username=payload.username,
-        email=payload.email,
-        hashed_password=hash_password(payload.password),
-    )
-    db.add(user)
+    uid: str = claims["uid"]
+    email: str = claims.get("email", "")
+    display_name: str | None = claims.get("name")
+
+    user = db.query(User).filter(User.firebase_uid == uid).first()
+    if user is None:
+        user = User(firebase_uid=uid, email=email, display_name=display_name)
+        db.add(user)
+    else:
+        # Keep email and display name in sync with Firebase.
+        user.email = email
+        user.display_name = display_name
+
     db.commit()
     db.refresh(user)
     return user
-
-
-@router.post("/login", response_model=TokenResponse)
-async def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
-    user = db.query(User).filter(User.username == payload.username).first()
-    if user is None or not verify_password(payload.password, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Invalid username or password")
-
-    token = create_access_token(subject=user.username)
-    return TokenResponse(access_token=token)

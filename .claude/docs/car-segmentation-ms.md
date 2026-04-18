@@ -14,7 +14,7 @@ See [README.md](../../README.md) for commands.
 
 ```
 car-segmentation-ms/
-├── server.py          # FastAPI endpoints (car-segmentation, car-part-segmentation, edit-photo)
+├── server.py          # FastAPI endpoint (/edit-photo)
 ├── segmentation.py    # Core CV logic: YOLO detection → SAM mask generation
 ├── utils.py           # Model initialization, mask utilities
 └── environment-local.yml
@@ -25,46 +25,42 @@ car-segmentation-ms/
 ## Model Weights (gitignored)
 
 Place in `car-segmentation-ms/model/`:
-- `sam_vit_b_01ec64.pth` — SAM ViT-Base
-- `yolov11seg.pt` — YOLOv11 segmentation (car part detection)
-- `yolov10n.pt` — YOLOv10n (full car detection)
+- `sam_vit_h_4b8939.pth` — SAM ViT-H
+- `yolov11n.pt` — YOLOv11n (car detection)
 
 ## API Endpoints
 
 | Method | Path | Input | Output |
 |---|---|---|---|
-| POST | `/car-segmentation` | `file` (image), `inverse` (bool) | PNG — car isolated or background isolated |
-| POST | `/car-part-segmentation` | `file`, `carPartId` (int), `inverse` (bool) | PNG — specific car part masked |
-| POST | `/edit-photo` | `file`, `prompt` (str), `edit_car` (bool), `size` (str) | PNG — AI-edited result |
+| POST | `/edit-photo` | `file` (image), `prompt` (str), `edit_car` (bool), `size` (str) | PNG — AI-edited result |
 
-`/edit-photo` writes intermediate files to `output/image.png` and `output/mask.png`, then calls `gpt-image-1` via the OpenAI API.
+`/edit-photo` writes intermediate files to a per-request temp dir `output/request-<uuid>/` (cleaned up in a `finally` block after the OpenAI call), then calls `gpt-image-1` via the OpenAI API.
 
 ## ML Pipeline
 
 ```
 Input image
     │
-    ▼ YOLOv10n (full car detection)
+    ▼ YOLOv11n (full car detection)
 Bounding box
     │
-    ▼ SAM ViT-Base (mask generation from bbox prompt)
+    ▼ SAM ViT-H (mask generation from bbox prompt)
 Binary mask
     │
-    ├─ (car-segmentation) → apply mask to isolate car/background
-    └─ (car-part-segmentation) → YOLOv11seg detects part within car bbox → SAM mask → apply
+    └─ (edit-photo) → apply mask for inpainting → OpenAI gpt-image-1 → PNG result
 ```
 
 **`apply_binary_mask_for_inpainting()` steps** (`utils.py`):
 1. Resize image to `size` (e.g., `1024x1536`) if provided
-2. Save `output/image.png`
+2. Save `<tmp_dir>/image.png`
 3. Threshold mask → binary
 4. Invert mask if `inverse=True`
 5. GaussianBlur 5×5 for soft edges
 6. Convert to RGBA; alpha channel = mask
-7. Save `output/mask.png`
+7. Save `<tmp_dir>/mask.png`
 8. Return numpy RGBA array
 
 **Failure modes:**
-- No car detected by YOLOv10n → HTTP 400: `"No cars detected in the image"`
+- No car detected by YOLOv11n → HTTP 400: `"No cars detected in the image"`
 - CUDA unavailable → silently falls back to CPU (inference is significantly slower)
 - OpenAI API error → propagates as HTTP 500

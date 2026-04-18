@@ -1,6 +1,6 @@
 # car-frontend
 
-React 19 + TypeScript SPA. Communicates with `car-backend-ms` via Axios; JWT stored in localStorage.
+React 19 + TypeScript SPA. Communicates with `car-backend-ms` via Axios; authentication via Firebase (Google Sign-In).
 
 **Port:** 5173 (dev) | **Bundler:** Vite 8
 
@@ -20,12 +20,12 @@ car-frontend/src/
 ├── App.tsx                         # BrowserRouter + route definitions
 ├── index.css                       # Global styles (TailwindCSS)
 ├── api/
-│   ├── client.ts                   # Axios instance; JWT interceptor; 401 → /login redirect
-│   ├── auth.ts                     # register(), login()
+│   ├── client.ts                   # Axios instance; Firebase ID token interceptor; 401 → /login redirect
+│   ├── auth.ts                     # syncFirebaseUser(idToken) — POST /auth/firebase
 │   ├── photos.ts                   # getPhotos(), getPhotoBlob()
-│   └── segmentation.ts             # editPhoto(), carSegmentation(), carPartSegmentation()
+│   └── segmentation.ts             # editPhoto()
 ├── context/
-│   ├── AuthContext.tsx             # AuthProvider; reads/writes localStorage
+│   ├── AuthContext.tsx             # AuthProvider; Firebase onAuthStateChanged, Google Sign-In
 │   ├── authContextCore.ts
 │   └── useAuth.ts
 ├── hooks/
@@ -48,7 +48,7 @@ car-frontend/src/
     │   └── ProtectedRoute.tsx
     ├── auth/
     │   ├── LoginForm.tsx
-    │   └── SignUpForm.tsx
+    │   └── SignUpForm.tsx          # stale — /signup route removed from App.tsx
     ├── tuning/
     │   ├── TuningForm.tsx
     │   ├── TuningForm.test.ts
@@ -76,7 +76,6 @@ car-frontend/src/
 | Path | Component | Protected | Notes |
 |------|-----------|-----------|-------|
 | `/login` | `LoginPage` | No | |
-| `/signup` | `SignUpPage` | No | |
 | `/` | `TuningPage` (inside `AppShell`) | Yes — via `ProtectedRoute` | Main editing interface |
 | `*` | Redirect → `/` | — | Catch-all |
 
@@ -94,7 +93,7 @@ Pure function `buildPrompt(form: TuningFormState): string`. Returns `customPromp
 
 ### API Layer — `src/api/`
 
-Axios instance with JWT interceptor that reads from `AuthContext`. Modules: `auth.ts`, `photos.ts`, `segmentation.ts`.
+Axios instance with a Firebase ID token interceptor: calls `auth.currentUser?.getIdToken()` on every request and sets `Authorization: Bearer <token>`. On 401 response, redirects to `/login`. Modules: `auth.ts`, `photos.ts`, `segmentation.ts`.
 
 ### edit-photo Polling Flow
 
@@ -105,4 +104,4 @@ Axios instance with JWT interceptor that reads from `AuthContext`. Modules: `aut
 
 ### Auth — `src/context/AuthContext.tsx`
 
-JWT stored in `localStorage`. `AuthContext` provides `user`, `login()`, `logout()`. `ProtectedRoute` wraps the `/` route.
+Firebase-based auth. `AuthContext` wraps `onAuthStateChanged` and exposes `user` (`{uid, email, displayName}`), `login()` (Google Sign-In popup + syncs user to backend via `POST /auth/firebase`), and `logout()`. `ProtectedRoute` wraps the `/` route.

@@ -64,10 +64,9 @@ environment-local.yml
 **Base:** `pytorch/pytorch:2.2.0-cuda11.8-cudnn8-runtime`  
 **Port:** `${PORT:-8000}`  
 **Why this base:** Ships Python 3.10 + PyTorch 2.2.0 + CUDA 11.8 + cuDNN 8. Cloud Run GPU (NVIDIA L4) is CUDA 12.x hardware but backward-compatible with CUDA 11.8 containers. Torch is pre-installed so we filter it from `requirements.txt` to avoid pip re-fetching the CUDA PyPI variant.  
-**Model weights:** baked into the image at build time (~394 MB total). Files must be present in `car-segmentation-ms/model/` when building:
-- `sam_vit_b_01ec64.pth` (~375 MB)
-- `yolov11seg.pt` (~14 MB)
-- `yolov10n.pt` (~5 MB)
+**Model weights:** baked into the image at build time. Files must be present in `car-segmentation-ms/model/` when building:
+- `sam_vit_h_4b8939.pth` (~2.4 GB)
+- `yolov11n.pt` (~5 MB)
 
 ```dockerfile
 FROM pytorch/pytorch:2.2.0-cuda11.8-cudnn8-runtime
@@ -124,7 +123,7 @@ These must be injected via Cloud Run service config or Secret Manager — no `.e
 | `DATABASE_URL` | `postgresql://user:pass@/car_tuning?host=/cloudsql/PROJECT:REGION:INSTANCE` |
 | `SEGMENTATION_MS_URL` | Internal Cloud Run URL of the segmentation service |
 | `CORS_ORIGINS` | `["https://your-frontend.web.app"]` |
-| `JWT_EXPIRE_MINUTES` | `60` |
+| `FIREBASE_PROJECT_ID` | Your Firebase project ID |
 
 **car-segmentation-ms:**
 

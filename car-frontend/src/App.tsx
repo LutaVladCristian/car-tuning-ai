@@ -3,7 +3,6 @@ import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import AppShell from './components/layout/AppShell';
 import LoginPage from './pages/LoginPage';
-import SignUpPage from './pages/SignUpPage';
 import TuningPage from './pages/TuningPage';
 
 export default function App() {
@@ -12,7 +11,6 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/signup" element={<SignUpPage />} />
           <Route
             path="/"
             element={

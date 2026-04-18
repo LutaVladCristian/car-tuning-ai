@@ -12,25 +12,25 @@ An AI-powered car image manipulation platform. Users upload car photos, isolate 
 │              http://localhost:5173                  │
 │           React 19 + TypeScript (Vite)              │
 └──────────────────────┬──────────────────────────────┘
-                       │ HTTP (Axios + JWT)
+                       │ HTTP (Axios + Firebase ID token)
                        ▼
 ┌─────────────────────────────────────────────────────┐
 │            car-backend-ms  :8001                    │
 │         FastAPI — auth gateway + proxy              │
-│   JWT auth · SQLAlchemy ORM · Alembic migrations    │
+│   Firebase auth · SQLAlchemy ORM · Alembic migrations    │
 └───────┬──────────────────────────┬──────────────────┘
         │ SQL (psycopg2)           │ HTTP (httpx)
         ▼                         ▼
 ┌───────────────┐   ┌─────────────────────────────────┐
 │  PostgreSQL   │   │     car-segmentation-ms  :8000  │
 │  (Cloud SQL   │   │  FastAPI — ML inference          │
-│   or local)   │   │  YOLOv10n · SAM · OpenAI API    │
+│   or local)   │   │  YOLOv11n · SAM ViT-H · OpenAI  │
 └───────────────┘   └─────────────────────────────────┘
 ```
 
 **Request flow:**
 1. Browser authenticates and sends image + form data to `car-backend-ms`.
-2. Backend validates JWT, stores the original image in PostgreSQL, then proxies the request to `car-segmentation-ms`.
+2. Backend verifies Firebase ID token, stores the original image in PostgreSQL, then proxies the request to `car-segmentation-ms`.
 3. Segmentation service runs YOLO → SAM (→ OpenAI for `/edit-photo`) and returns a PNG.
 4. Backend stores the result PNG in PostgreSQL and returns it to the browser.
 
@@ -70,6 +70,6 @@ API keys / model secrets → Secret Manager
 - PR checks run frontend tests plus unit tests for both Python microservices.
 - `environment-local.yml` in each service directory is the source of truth for local dev dependencies (conda);
 - `car-backend-ms` must stay ML-free — heavy deps (torch, ultralytics, etc.) belong only in `car-segmentation-ms`.
-- Model weights are gitignored — place in `car-segmentation-ms/model/`: `sam_vit_b_01ec64.pth`, `yolov11seg.pt`, `yolov10n.pt`.
+- Model weights are gitignored — place in `car-segmentation-ms/model/`: `sam_vit_h_4b8939.pth`, `yolov11n.pt`.
 - Do not use plain `pip install` outside of the Conda envs.
 - CORS in `car-backend-ms/main.py` is currently hardcoded to `http://localhost:5173` — update `allow_origins` before deploying.

@@ -4,7 +4,7 @@ import os
 import shutil
 import uuid
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import StreamingResponse
 from openai import OpenAI
 from PIL import Image

@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     DATABASE_URL: str
-    JWT_EXPIRE_MINUTES: int = 60
+    FIREBASE_PROJECT_ID: str
     SEGMENTATION_MS_URL: str = "http://localhost:8000"
     APP_HOST: str = "0.0.0.0"
     APP_PORT: int = 8001

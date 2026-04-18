@@ -1,3 +1,12 @@
+from unittest.mock import patch
+
+from firebase_admin.exceptions import FirebaseError
+
+_FAKE_UID = "test-firebase-uid"
+_FAKE_TOKEN = "fake-firebase-id-token"
+_FAKE_CLAIMS = {"uid": _FAKE_UID, "email": "alice@example.com", "name": "Alice"}
+
+
 class TestHealthCheck:
     def test_returns_ok(self, client):
         resp = client.get("/health")
@@ -5,97 +14,36 @@ class TestHealthCheck:
         assert resp.json() == {"status": "ok"}
 
 
-class TestRegister:
-    def test_success_returns_201_with_user_fields(self, client):
-        resp = client.post(
-            "/auth/register",
-            json={"username": "bob", "email": "bob@example.com", "password": "password1"},
-        )
-        assert resp.status_code == 201
-        body = resp.json()
-        assert body["username"] == "bob"
-        assert body["email"] == "bob@example.com"
-        assert "id" in body
-        assert "created_at" in body
-        assert "password" not in body
-        assert "hashed_password" not in body
-
-    def test_duplicate_username_returns_409(self, client, make_user):
-        make_user(username="alice")
-        resp = client.post(
-            "/auth/register",
-            json={"username": "alice", "email": "other@example.com", "password": "password1"},
-        )
-        assert resp.status_code == 409
-        assert "Username already taken" in resp.json()["detail"]
-
-    def test_duplicate_email_returns_409(self, client, make_user):
-        make_user(email="shared@example.com")
-        resp = client.post(
-            "/auth/register",
-            json={"username": "newuser", "email": "shared@example.com", "password": "password1"},
-        )
-        assert resp.status_code == 409
-        assert "Email already registered" in resp.json()["detail"]
-
-    def test_short_password_returns_422(self, client):
-        resp = client.post(
-            "/auth/register",
-            json={"username": "bob", "email": "bob@example.com", "password": "short"},
-        )
-        assert resp.status_code == 422
-
-    def test_invalid_email_returns_422(self, client):
-        resp = client.post(
-            "/auth/register",
-            json={"username": "bob", "email": "not-an-email", "password": "password1"},
-        )
-        assert resp.status_code == 422
-
-    def test_short_username_returns_422(self, client):
-        resp = client.post(
-            "/auth/register",
-            json={"username": "ab", "email": "bob@example.com", "password": "password1"},
-        )
-        assert resp.status_code == 422
-
-
-class TestLogin:
-    def test_valid_credentials_return_200_with_token(self, client, make_user):
-        make_user(username="alice", password="password123")
-        resp = client.post(
-            "/auth/login",
-            json={"username": "alice", "password": "password123"},
-        )
+class TestFirebaseAuth:
+    def test_valid_token_creates_user_and_returns_200(self, client):
+        with patch("app.routers.auth.verify_firebase_token", return_value=_FAKE_CLAIMS):
+            resp = client.post("/auth/firebase", json={"id_token": _FAKE_TOKEN})
         assert resp.status_code == 200
         body = resp.json()
-        assert "access_token" in body
-        assert body["token_type"] == "bearer"
-        assert len(body["access_token"]) > 0
+        assert body["firebase_uid"] == _FAKE_UID
+        assert body["email"] == "alice@example.com"
+        assert body["display_name"] == "Alice"
+        assert "id" in body
 
-    def test_wrong_password_returns_401(self, client, make_user):
-        make_user(username="alice", password="correct")
-        resp = client.post(
-            "/auth/login",
-            json={"username": "alice", "password": "wrong"},
-        )
+    def test_calling_twice_updates_existing_user(self, client, make_user):
+        user = make_user()
+        updated_claims = {**_FAKE_CLAIMS, "email": "new@example.com", "name": "New Name"}
+        with patch("app.routers.auth.verify_firebase_token", return_value=updated_claims):
+            resp = client.post("/auth/firebase", json={"id_token": _FAKE_TOKEN})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["id"] == user.id
+        assert body["email"] == "new@example.com"
+        assert body["display_name"] == "New Name"
+
+    def test_invalid_token_returns_401(self, client):
+        with patch(
+            "app.routers.auth.verify_firebase_token",
+            side_effect=FirebaseError("invalid-argument", "bad token"),
+        ):
+            resp = client.post("/auth/firebase", json={"id_token": "bad-token"})
         assert resp.status_code == 401
-        assert "Invalid username or password" in resp.json()["detail"]
 
-    def test_unknown_username_returns_401(self, client):
-        resp = client.post(
-            "/auth/login",
-            json={"username": "nobody", "password": "password123"},
-        )
-        assert resp.status_code == 401
-
-    def test_returned_token_is_decodable(self, client, make_user):
-        make_user(username="alice", password="password123")
-        resp = client.post(
-            "/auth/login",
-            json={"username": "alice", "password": "password123"},
-        )
-        token = resp.json()["access_token"]
-
-        from app.core.security import decode_access_token
-        assert decode_access_token(token) == "alice"
+    def test_missing_id_token_returns_422(self, client):
+        resp = client.post("/auth/firebase", json={})
+        assert resp.status_code == 422

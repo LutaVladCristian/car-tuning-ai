@@ -26,9 +26,8 @@ COPY server.py segmentation.py utils.py ./
 
 # Model weights baked into the image at build time.
 # Ensure car-segmentation-ms/model/ contains:
-#   sam_vit_b_01ec64.pth  (~375 MB)
-#   yolov11seg.pt          (~14 MB)
-#   yolov10n.pt            (~5 MB)
+#   sam_vit_h_4b8939.pth  (~2.4 GB)
+#   yolov11n.pt            (~5 MB)
 COPY model/ ./model/
 
 EXPOSE 8000

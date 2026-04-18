@@ -28,82 +28,44 @@ beforeEach(() => {
 });
 
 describe('LoginForm', () => {
-  it('renders username and password inputs', () => {
+  it('renders the Google Sign-In button', () => {
     renderForm();
-    expect(screen.getByPlaceholderText('your_username')).toBeDefined();
-    expect(screen.getByPlaceholderText('••••••••')).toBeDefined();
+    expect(screen.getByRole('button', { name: /sign in with google/i })).toBeDefined();
   });
 
-  it('calls login with the entered credentials on submit', async () => {
+  it('calls login() when the button is clicked', async () => {
     mockLogin.mockResolvedValueOnce(undefined);
     renderForm();
-
-    fireEvent.change(screen.getByPlaceholderText('your_username'), {
-      target: { value: 'alice' },
-    });
-    fireEvent.change(screen.getByPlaceholderText('••••••••'), {
-      target: { value: 'secret123' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
-
-    await waitFor(() => expect(mockLogin).toHaveBeenCalledWith({
-      username: 'alice',
-      password: 'secret123',
-    }));
+    fireEvent.click(screen.getByRole('button', { name: /sign in with google/i }));
+    await waitFor(() => expect(mockLogin).toHaveBeenCalledTimes(1));
   });
 
   it('navigates to "/" after a successful login', async () => {
     mockLogin.mockResolvedValueOnce(undefined);
     renderForm();
-
-    fireEvent.change(screen.getByPlaceholderText('your_username'), { target: { value: 'u' } });
-    fireEvent.change(screen.getByPlaceholderText('••••••••'), { target: { value: 'p' } });
-    fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
-
+    fireEvent.click(screen.getByRole('button', { name: /sign in with google/i }));
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/'));
   });
 
-  it('shows the API error message when login fails with a detail field', async () => {
-    mockLogin.mockRejectedValueOnce({
-      response: { data: { detail: 'Invalid credentials' } },
-    });
+  it('shows error message when login fails', async () => {
+    mockLogin.mockRejectedValueOnce(new Error('popup closed'));
     renderForm();
-
-    fireEvent.change(screen.getByPlaceholderText('your_username'), { target: { value: 'u' } });
-    fireEvent.change(screen.getByPlaceholderText('••••••••'), { target: { value: 'p' } });
-    fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
-
-    await waitFor(() => expect(screen.getByText('Invalid credentials')).toBeDefined());
-  });
-
-  it('shows the fallback error message when the error has no detail field', async () => {
-    mockLogin.mockRejectedValueOnce(new Error('Network error'));
-    renderForm();
-
-    fireEvent.change(screen.getByPlaceholderText('your_username'), { target: { value: 'u' } });
-    fireEvent.change(screen.getByPlaceholderText('••••••••'), { target: { value: 'p' } });
-    fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
-
+    fireEvent.click(screen.getByRole('button', { name: /sign in with google/i }));
     await waitFor(() =>
-      expect(screen.getByText('Invalid username or password.')).toBeDefined()
+      expect(screen.getByText('Sign in failed. Please try again.')).toBeDefined()
     );
   });
 
-  it('disables the button and shows "Signing in..." while the request is in flight', async () => {
+  it('disables the button and shows "Signing in..." while in flight', async () => {
     let resolve!: () => void;
     mockLogin.mockReturnValueOnce(new Promise<void>((res) => { resolve = res; }));
     renderForm();
-
-    fireEvent.change(screen.getByPlaceholderText('your_username'), { target: { value: 'u' } });
-    fireEvent.change(screen.getByPlaceholderText('••••••••'), { target: { value: 'p' } });
-    fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
-
+    fireEvent.click(screen.getByRole('button', { name: /sign in with google/i }));
     await waitFor(() => {
       const btn = screen.getByRole('button', { name: /signing in/i });
       expect(btn).toBeDefined();
       expect((btn as HTMLButtonElement).disabled).toBe(true);
     });
-
     resolve();
   });
 });

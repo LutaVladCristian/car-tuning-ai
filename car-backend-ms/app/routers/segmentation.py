@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.db.models.photo import Photo
+from app.db.models.photo import OperationType, Photo
 from app.db.models.user import User
 from app.services import proxy_service
 from dependencies import get_current_user, get_db

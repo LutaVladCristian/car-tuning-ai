@@ -1,7 +1,8 @@
 import os
+from unittest.mock import patch
 
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
-os.environ["JWT_EXPIRE_MINUTES"] = "60"
+os.environ["FIREBASE_PROJECT_ID"] = "test-project"
 os.environ["SEGMENTATION_MS_URL"] = "http://fake-seg:8000"
 
 import pytest
@@ -13,7 +14,6 @@ from sqlalchemy.pool import StaticPool
 
 import app.db.models.photo  # noqa: F401
 import app.db.models.user  # noqa: F401
-from app.core.security import create_access_token, hash_password
 from app.db.base import Base
 from app.db.models.photo import OperationType, Photo
 from app.db.models.user import User
@@ -25,6 +25,11 @@ _engine = create_engine(
     poolclass=StaticPool,
 )
 _TestingSession = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
+
+# Shared constants reused by individual test modules.
+FAKE_UID = "test-firebase-uid"
+FAKE_TOKEN = "fake-firebase-id-token"
+FAKE_CLAIMS = {"uid": FAKE_UID, "email": "alice@example.com", "name": "Alice"}
 
 
 @pytest.fixture(autouse=True)
@@ -49,19 +54,19 @@ def client(db):
         yield db
 
     fastapi_app.dependency_overrides[get_db] = _override_get_db
-    with TestClient(fastapi_app, raise_server_exceptions=True) as c:
-        yield c
-    fastapi_app.dependency_overrides.clear()
+    try:
+        # Patch the Firebase token verification so tests never hit Firebase.
+        with patch("dependencies.verify_firebase_token", return_value=FAKE_CLAIMS):
+            with TestClient(fastapi_app, raise_server_exceptions=True) as c:
+                yield c
+    finally:
+        fastapi_app.dependency_overrides.clear()
 
 
 @pytest.fixture()
 def make_user(db):
-    def _factory(username="alice", email="alice@example.com", password="password123"):
-        user = User(
-            username=username,
-            email=email,
-            hashed_password=hash_password(password),
-        )
+    def _factory(firebase_uid=FAKE_UID, email="alice@example.com", display_name="Alice"):
+        user = User(firebase_uid=firebase_uid, email=email, display_name=display_name)
         db.add(user)
         db.commit()
         db.refresh(user)
@@ -73,8 +78,7 @@ def make_user(db):
 @pytest.fixture()
 def user_and_token(make_user):
     user = make_user()
-    token = create_access_token(user.username)
-    return user, token
+    return user, FAKE_TOKEN
 
 
 @pytest.fixture()
@@ -88,7 +92,7 @@ def make_photo(db):
     def _factory(
         user,
         filename="car.jpg",
-        operation_type=OperationType.car_segmentation,
+        operation_type=OperationType.edit_photo,
         original_image=b"original",
         result_image=b"result",
         operation_params=None,
