@@ -16,7 +16,7 @@ export default function AppShell() {
         </Link>
         <div className="flex items-center gap-4">
           <span className="text-zinc-400 text-sm">
-            {user?.username}
+            {user?.displayName ?? user?.email}
           </span>
           <button
             onClick={logout}

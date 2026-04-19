@@ -12,11 +12,10 @@ const mockUseAuth = vi.mocked(useAuth);
 
 function renderWithRouter(isAuthenticated: boolean) {
   mockUseAuth.mockReturnValue({
-    user: isAuthenticated ? { username: 'alice', token: 'tok' } : null,
+    user: isAuthenticated ? { uid: 'uid-alice', email: 'alice@example.com', displayName: 'Alice' } : null,
     isAuthenticated,
     login: vi.fn(),
     logout: vi.fn(),
-    register: vi.fn(),
   });
 
   return render(
