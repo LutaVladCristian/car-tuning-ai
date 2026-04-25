@@ -68,8 +68,8 @@ jobs:
             --service-account segmentation-ms-sa@car-tuning-ai-494319.iam.gserviceaccount.com \
             --update-secrets OPENAI_API_KEY=car-backend-openai-key:latest \
             --set-env-vars MODEL_BUCKET=car-tuning-ai-vision-models \
-            --allow-unauthenticated \
-            --ingress internal \
+            --no-allow-unauthenticated \
+            --ingress all \
             --cpu-boost \
             --gpu 1 \
             --gpu-type nvidia-l4 \
