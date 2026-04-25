@@ -123,7 +123,7 @@ gcloud run deploy car-backend-ms \
   --service-account backend-ms-sa@car-tuning-ai-494319.iam.gserviceaccount.com \
   --add-cloudsql-instances car-tuning-ai-494319:europe-west1:car-tuning-db \
   --update-secrets DATABASE_URL=car-backend-db-url:latest \
-  --set-env-vars "FIREBASE_PROJECT_ID=slick-tunes,FIREBASE_STORAGE_BUCKET=slick-tunes.firebasestorage.app,SEGMENTATION_MS_URL=https://car-segmentation-ms-130079365217.europe-west1.run.app,CORS_ORIGINS=[\"https://car-tuning-ai-494319.web.app\"]" \
+  --set-env-vars "FIREBASE_PROJECT_ID=slick-tunes,FIREBASE_STORAGE_BUCKET=slick-tunes.firebasestorage.app,SEGMENTATION_MS_URL=https://car-segmentation-ms-130079365217.europe-west1.run.app,CORS_ORIGINS=[\"https://slick-tunes.web.app\"]" \
   --allow-unauthenticated
 ```
 
