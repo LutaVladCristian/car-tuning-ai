@@ -24,7 +24,7 @@ An AI-powered car image manipulation platform. Users upload car photos, isolate 
 ┌───────────────┐   ┌─────────────────────────────────┐
 │  PostgreSQL   │   │     car-segmentation-ms  :8000  │
 │  (Cloud SQL   │   │  FastAPI — ML inference          │
-│   or local)   │   │  YOLOv11n · SAM ViT-H · OpenAI  │
+│   or local)   │   │  YOLOv10n · SAM ViT-H · OpenAI  │
 └───────────────┘   └─────────────────────────────────┘
 ```
 
@@ -71,6 +71,6 @@ API keys / model secrets → Secret Manager
 - PR checks run frontend tests plus unit tests for both Python microservices.
 - `environment-local.yml` in each service directory is the source of truth for local dev dependencies (conda);
 - `car-backend-ms` must stay ML-free — heavy deps (torch, ultralytics, etc.) belong only in `car-segmentation-ms`.
-- Model weights are gitignored — place in `car-segmentation-ms/model/`: `sam_vit_h_4b8939.pth`, `yolov11n.pt`.
+- Model weights are gitignored — place in `car-segmentation-ms/model/`: `sam_vit_h_4b8939.pth`, `yolov10n.pt`.
 - Do not use plain `pip install` outside of the Conda envs.
 - CORS origins are configured via the `CORS_ORIGINS` env var (JSON list). Production value: `["https://slick-tunes.web.app"]`; local default: `["http://localhost:5173"]`.

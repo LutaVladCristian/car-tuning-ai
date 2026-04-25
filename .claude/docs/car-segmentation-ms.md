@@ -26,7 +26,7 @@ car-segmentation-ms/
 
 Place in `car-segmentation-ms/model/`:
 - `sam_vit_h_4b8939.pth` — SAM ViT-H
-- `yolov11n.pt` — YOLOv11n (car detection)
+- `yolov10n.pt` — YOLOv10n (car detection)
 
 ## API Endpoints
 
@@ -42,7 +42,7 @@ Place in `car-segmentation-ms/model/`:
 ```
 Input image
     │
-    ▼ YOLOv11n (full car detection)
+    ▼ YOLOv10n (full car detection)
 Bounding box
     │
     ▼ SAM ViT-H (mask generation from bbox prompt)
@@ -69,6 +69,6 @@ Models are loaded in a background thread via `asyncio.to_thread` so uvicorn bind
 
 **Failure modes:**
 - Models not yet ready → HTTP 503: `"Models still loading, try again shortly"`
-- No car detected by YOLOv11n → HTTP 400: `"No cars detected in the image"`
+- No car detected by YOLOv10n → HTTP 400: `"No cars detected in the image"`
 - CUDA unavailable → silently falls back to CPU (inference is significantly slower)
 - OpenAI API error → propagates as HTTP 500

@@ -1,10 +1,12 @@
 
+from io import BytesIO
 from pathlib import Path
 
 import cv2
 import numpy as np
 import torch
 from dotenv import find_dotenv, load_dotenv
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 load_dotenv(find_dotenv())
 
@@ -26,7 +28,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Constants for initialization
 SAM_CHECKPOINT_PATH = str(_HERE / "model" / "sam_vit_h_4b8939.pth")
 SAM_MODEL_TYPE = "vit_h"
-YOLO_DETECTION_MODEL_PATH = str(_HERE / "model" / "yolov11n.pt")
+YOLO_DETECTION_MODEL_PATH = str(_HERE / "model" / "yolov10n.pt")
 _MAX_IMAGE_DIMENSION = 4096
 _MAX_IMAGE_PIXELS = _MAX_IMAGE_DIMENSION * _MAX_IMAGE_DIMENSION
 
@@ -41,6 +43,31 @@ def _native_yolo_imgsz(img: np.ndarray) -> tuple[int, int]:
     return height, width
 
 
+def _decode_image_for_cv(content: bytes) -> np.ndarray:
+    """Decode uploads with EXIF orientation applied, then return OpenCV BGR pixels."""
+    try:
+        with Image.open(BytesIO(content)) as source_image:
+            oriented = ImageOps.exif_transpose(source_image)
+            rgb_image = oriented.convert("RGB")
+            rgb_array = np.array(rgb_image)
+    except (UnidentifiedImageError, OSError) as exc:
+        raise ValueError("Failed to decode image. Ensure the input is a valid image file.") from exc
+
+    return cv2.cvtColor(rgb_array, cv2.COLOR_RGB2BGR)
+
+
+def _select_closest_box(boxes: torch.Tensor) -> torch.Tensor:
+    """Pick the closest car candidate, approximated by largest bounding-box area."""
+    if len(boxes) == 0:
+        return boxes
+
+    widths = boxes[:, 2] - boxes[:, 0]
+    heights = boxes[:, 3] - boxes[:, 1]
+    areas = widths * heights
+    closest_idx = torch.argmax(areas)
+    return boxes[closest_idx : closest_idx + 1]
+
+
 def segment_car(content, inverse=True, size=None, output_dir=None):
     """Segment cars from an input image.
 
@@ -52,11 +79,7 @@ def segment_car(content, inverse=True, size=None, output_dir=None):
     if output_dir is None:
         output_dir = working_dir
 
-    file_bytes = np.frombuffer(content, np.uint8)
-    img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-
-    if img is None:
-        raise ValueError("Failed to decode image. Ensure the input is a valid image file.")
+    img = _decode_image_for_cv(content)
 
     height, width = img.shape[:2]
     if (
@@ -83,12 +106,14 @@ def segment_car(content, inverse=True, size=None, output_dir=None):
     boxes_yolo = results_yolo[0].boxes.xyxy if len(results_yolo) > 0 else []
 
     if len(boxes_yolo) == 0:
-        results_yolo = yolo_detection_model.predict(img, conf=0.25, imgsz=native_imgsz)
+        results_yolo = yolo_detection_model.predict(img, conf=0.75, imgsz=native_imgsz)
         boxes_yolo = results_yolo[0].boxes.xyxy if len(results_yolo) > 0 else []
 
     # H1: raise instead of returning a dict so callers get a clean 400 response.
     if len(boxes_yolo) == 0:
         raise ValueError("No cars detected in image.")
+
+    boxes_yolo = _select_closest_box(boxes_yolo)
 
     sam_predictor.set_image(img)
 

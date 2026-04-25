@@ -9,12 +9,15 @@ on:
 permissions:
   contents: read
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   deploy-backend:
     name: Build & Deploy car-backend-ms
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
 
       - name: Authenticate to GCP
         env:
@@ -46,7 +49,7 @@ jobs:
     name: Build & Deploy car-segmentation-ms
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
 
       - name: Authenticate to GCP
         env:
@@ -88,11 +91,11 @@ jobs:
     name: Build & Deploy car-frontend
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install dependencies
         working-directory: car-frontend
