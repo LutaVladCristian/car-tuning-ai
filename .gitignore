@@ -28,6 +28,8 @@ venv/
 **/node_modules/
 .vite/
 car-frontend/dist/
+# Firebase CLI cache (hosting deploy cache, not config)
+car-frontend/.firebase/
 
 # =============================================================================
 # LOGS
