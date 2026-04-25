@@ -1,5 +1,5 @@
-import { Navigate } from 'react-router-dom';
+import SignUpForm from '../components/auth/SignUpForm';
 
 export default function SignUpPage() {
-  return <Navigate to="/login" replace />;
+  return <SignUpForm />;
 }

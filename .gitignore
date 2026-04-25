@@ -55,7 +55,7 @@ Thumbs.db
 # PROJECT-SPECIFIC
 # =============================================================================
 # ML model weights (large binaries — obtain separately)
-car-segmentation-ms/model/
+car-segmentation-ms/car-segmentation-ms
 # Test data
 car-segmentation-ms/input/
 car-segmentation-ms/output/

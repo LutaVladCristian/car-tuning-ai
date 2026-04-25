@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/useAuth';
 
-export default function LoginForm() {
-  const { login, loginWithEmail } = useAuth();
+export default function SignUpForm() {
+  const { login, signUpWithEmail } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,21 +24,27 @@ export default function LoginForm() {
     }
   };
 
-  const handleEmailSignIn = async (e: React.FormEvent) => {
+  const handleEmailSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
     setError(null);
     setIsLoading(true);
     try {
-      await loginWithEmail(email, password);
+      await signUpWithEmail(email, password);
       navigate('/');
     } catch (err: unknown) {
       const code = (err as { code?: string }).code;
-      if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
-        setError('Invalid email or password.');
-      } else if (code === 'auth/too-many-requests') {
-        setError('Too many attempts. Please try again later.');
+      if (code === 'auth/email-already-in-use') {
+        setError('An account with this email already exists.');
+      } else if (code === 'auth/weak-password') {
+        setError('Password must be at least 6 characters.');
+      } else if (code === 'auth/invalid-email') {
+        setError('Invalid email address.');
       } else {
-        setError('Sign in failed. Please try again.');
+        setError('Sign up failed. Please try again.');
       }
     } finally {
       setIsLoading(false);
@@ -53,7 +60,7 @@ export default function LoginForm() {
             <span className="text-accent-orange">Tune</span>
             <span className="text-zinc-100">AI</span>
           </h1>
-          <p className="text-zinc-400 text-sm">Sign in to get started</p>
+          <p className="text-zinc-400 text-sm">Create your account</p>
         </div>
 
         <div className="bg-surface-800 border border-surface-600 rounded-xl p-6 space-y-4">
@@ -76,7 +83,7 @@ export default function LoginForm() {
                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
               </svg>
             )}
-            {isLoading ? 'Signing in...' : 'Sign in with Google'}
+            {isLoading ? 'Creating account...' : 'Sign up with Google'}
           </button>
 
           <div className="flex items-center gap-3">
@@ -85,7 +92,7 @@ export default function LoginForm() {
             <div className="flex-1 h-px bg-surface-600" />
           </div>
 
-          <form onSubmit={handleEmailSignIn} className="space-y-3">
+          <form onSubmit={handleEmailSignUp} className="space-y-3">
             <input
               type="email"
               placeholder="Email"
@@ -104,19 +111,28 @@ export default function LoginForm() {
               disabled={isLoading}
               className="w-full bg-surface-900 border border-surface-600 text-zinc-100 placeholder-zinc-500 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-accent-blue disabled:opacity-50"
             />
+            <input
+              type="password"
+              placeholder="Confirm password"
+              value={confirmPassword}
+              onChange={e => setConfirmPassword(e.target.value)}
+              required
+              disabled={isLoading}
+              className="w-full bg-surface-900 border border-surface-600 text-zinc-100 placeholder-zinc-500 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-accent-blue disabled:opacity-50"
+            />
             <button
               type="submit"
               disabled={isLoading}
               className="w-full bg-accent-blue hover:bg-accent-blue/90 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-2.5 rounded-lg transition-colors text-sm"
             >
-              {isLoading ? 'Signing in...' : 'Sign in'}
+              {isLoading ? 'Creating account...' : 'Create account'}
             </button>
           </form>
 
           <p className="text-center text-zinc-500 text-xs">
-            Don't have an account?{' '}
-            <Link to="/signup" className="text-accent-blue hover:underline">
-              Sign up
+            Already have an account?{' '}
+            <Link to="/login" className="text-accent-blue hover:underline">
+              Sign in
             </Link>
           </p>
         </div>

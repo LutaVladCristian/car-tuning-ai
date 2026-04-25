@@ -11,8 +11,8 @@ def _get_app() -> firebase_admin.App:
     except ValueError:
         settings = get_settings()
         # On Cloud Run, Application Default Credentials are picked up automatically
-        # from the attached service account. Locally, set GOOGLE_APPLICATION_CREDENTIALS
-        # to a downloaded service account key JSON file.
+        # from the attached service account. Locally, run:
+        #   gcloud auth application-default login
         cred = credentials.ApplicationDefault()
         return firebase_admin.initialize_app(
             cred, {"projectId": settings.FIREBASE_PROJECT_ID}

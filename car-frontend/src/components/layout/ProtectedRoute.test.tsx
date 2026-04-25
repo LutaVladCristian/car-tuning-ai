@@ -15,6 +15,8 @@ function renderWithRouter(isAuthenticated: boolean) {
     user: isAuthenticated ? { uid: 'uid-alice', email: 'alice@example.com', displayName: 'Alice' } : null,
     isAuthenticated,
     login: vi.fn(),
+    loginWithEmail: vi.fn(),
+    signUpWithEmail: vi.fn(),
     logout: vi.fn(),
   });
 
