@@ -35,6 +35,12 @@ sam_predictor = initialize_sam_model(SAM_CHECKPOINT_PATH, SAM_MODEL_TYPE, DEVICE
 yolo_detection_model = initialize_yolo_model(YOLO_DETECTION_MODEL_PATH, DEVICE)
 
 
+def _native_yolo_imgsz(img: np.ndarray) -> tuple[int, int]:
+    """Ask YOLO to run at the uploaded image's decoded height and width."""
+    height, width = img.shape[:2]
+    return height, width
+
+
 def segment_car(content, inverse=True, size=None, output_dir=None):
     """Segment cars from an input image.
 
@@ -65,12 +71,19 @@ def segment_car(content, inverse=True, size=None, output_dir=None):
             f"Maximum is {_MAX_IMAGE_DIMENSION}px per side and {_MAX_IMAGE_PIXELS} pixels total."
         )
 
+    native_imgsz = _native_yolo_imgsz(img)
+
     # Try car-class detection first; fall back to any object if nothing found.
-    results_yolo = yolo_detection_model.predict(img, classes=[2], conf=0.25)
+    results_yolo = yolo_detection_model.predict(
+        img,
+        classes=[2],
+        conf=0.25,
+        imgsz=native_imgsz,
+    )
     boxes_yolo = results_yolo[0].boxes.xyxy if len(results_yolo) > 0 else []
 
     if len(boxes_yolo) == 0:
-        results_yolo = yolo_detection_model.predict(img, conf=0.25)
+        results_yolo = yolo_detection_model.predict(img, conf=0.25, imgsz=native_imgsz)
         boxes_yolo = results_yolo[0].boxes.xyxy if len(results_yolo) > 0 else []
 
     # H1: raise instead of returning a dict so callers get a clean 400 response.
