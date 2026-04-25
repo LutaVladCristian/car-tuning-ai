@@ -121,8 +121,9 @@ gcloud run deploy car-backend-ms \
   --image gcr.io/car-tuning-ai-494319/car-backend-ms \
   --region europe-west1 \
   --service-account backend-ms-sa@car-tuning-ai-494319.iam.gserviceaccount.com \
+  --add-cloudsql-instances car-tuning-ai-494319:europe-west1:car-tuning-db \
   --update-secrets DATABASE_URL=car-backend-db-url:latest \
-  --set-env-vars "FIREBASE_PROJECT_ID=car-tuning-ai-494319,FIREBASE_STORAGE_BUCKET=car-tuning-ai-494319.firebasestorage.app,SEGMENTATION_MS_URL=https://car-segmentation-ms-HASH-uc.a.run.app,CORS_ORIGINS=[\"https://car-tuning-ai-494319.web.app\"]" \
+  --set-env-vars "FIREBASE_PROJECT_ID=slick-tunes,FIREBASE_STORAGE_BUCKET=slick-tunes.firebasestorage.app,SEGMENTATION_MS_URL=https://car-segmentation-ms-130079365217.europe-west1.run.app,CORS_ORIGINS=[\"https://car-tuning-ai-494319.web.app\"]" \
   --allow-unauthenticated
 ```
 
@@ -136,12 +137,14 @@ gcloud run deploy car-segmentation-ms \
   --set-env-vars MODEL_BUCKET=car-tuning-ai-vision-models \
   --no-allow-unauthenticated \
   --ingress internal \
-  --startup-cpu-boost \
+  --cpu-boost \
   --gpu 1 \
   --gpu-type nvidia-l4 \
   --cpu 8 \
-  --memory 32Gi \
+  --memory 16Gi \
   --concurrency 1 \
+  --max-instances 1 \
+  --no-gpu-zonal-redundancy \
   --no-cpu-throttling \
   --timeout 600
 ```
