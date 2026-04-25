@@ -1,8 +1,7 @@
-# pytorch/pytorch:2.2.0-cuda11.8-cudnn8-runtime ships Python 3.10, PyTorch 2.2.0,
-# CUDA 11.8, and cuDNN 8 — matches the sam-microservice conda env exactly.
-# Cloud Run GPU (NVIDIA L4) runs CUDA 12.x hardware but is backward-compatible
-# with CUDA 11.8 containers.
-FROM pytorch/pytorch:2.2.0-cuda11.8-cudnn8-runtime
+# pytorch/pytorch:2.8.0-cuda12.6-cudnn9-runtime ships Python 3.10, PyTorch 2.8.0,
+# CUDA 12.6, and cuDNN 9 — matches the sam-microservice conda env.
+# Cloud Run GPU (NVIDIA L4) supports CUDA 12.x natively.
+FROM pytorch/pytorch:2.8.0-cuda12.6-cudnn9-runtime
 
 WORKDIR /app
 

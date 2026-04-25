@@ -2,7 +2,7 @@
 
 Internal FastAPI ML inference service — YOLO detection, SAM masking, and OpenAI image editing.
 
-**Conda env:** `sam-microservice` (Python 3.10, PyTorch 2.2.0 + heavy ML deps — note: differs from `car-backend-ms` which uses Python 3.12)
+**Conda env:** `sam-microservice` (Python 3.10, PyTorch 2.8.0 + heavy ML deps — note: differs from `car-backend-ms` which uses Python 3.12)
 **Port:** 8000 (not exposed publicly — backend proxies to it)
 **No auth** — accessible only from within the same network/host as `car-backend-ms`.
 
@@ -42,22 +42,28 @@ Place in `car-segmentation-ms/model/`:
 ```
 Input image
     │
-    ▼ YOLOv10n (full car detection)
-Bounding box
+    ▼ YOLOv10n — detect all cars (class 2, conf 0.25; fallback: any object conf 0.75)
+All bounding boxes
     │
-    ▼ SAM ViT-H (mask generation from bbox prompt)
-Binary mask
+    ▼ SAM ViT-H — generate one mask per box (multimask_output=False)
+N masks (one per detected car)
     │
-    └─ (edit-photo) → apply mask for inpainting → OpenAI gpt-image-1 → PNG result
+    ▼ _pick_primary_mask() — select mask with most foreground pixels
+Single binary mask (most prominent car)
+    │
+    └─ apply_binary_mask_for_inpainting() → OpenAI gpt-image-1 → PNG result
 ```
+
+**Car selection — `_pick_primary_mask()` (`segmentation.py`):**
+SAM runs on every box YOLO found. The mask with the highest pixel count is chosen. This selects the most prominent car by actual segmented area rather than a bounding-box proxy, and guarantees exactly one mask is sent to OpenAI.
 
 **`apply_binary_mask_for_inpainting()` steps** (`utils.py`):
 1. Resize image to `size` (e.g., `1024x1536`) if provided
 2. Save `<tmp_dir>/image.png`
 3. Threshold mask → binary
-4. Invert mask if `inverse=True`
+4. Invert mask if `inverse=True` (True = edit car area; False = edit background)
 5. GaussianBlur 5×5 for soft edges
-6. Convert to RGBA; alpha channel = mask
+6. Convert to RGBA; alpha channel = mask values (0 = transparent = OpenAI edits here)
 7. Save `<tmp_dir>/mask.png`
 8. Return numpy RGBA array
 

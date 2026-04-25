@@ -56,16 +56,11 @@ def _decode_image_for_cv(content: bytes) -> np.ndarray:
     return cv2.cvtColor(rgb_array, cv2.COLOR_RGB2BGR)
 
 
-def _select_closest_box(boxes: torch.Tensor) -> torch.Tensor:
-    """Pick the closest car candidate, approximated by largest bounding-box area."""
-    if len(boxes) == 0:
-        return boxes
-
-    widths = boxes[:, 2] - boxes[:, 0]
-    heights = boxes[:, 3] - boxes[:, 1]
-    areas = widths * heights
-    closest_idx = torch.argmax(areas)
-    return boxes[closest_idx : closest_idx + 1]
+def _pick_primary_mask(masks: torch.Tensor) -> np.ndarray:
+    """From SAM masks (N, 1, H, W), return the single (H, W) mask with the most foreground pixels."""
+    pixel_counts = masks.sum(dim=(1, 2, 3))  # (N,)
+    best_idx = torch.argmax(pixel_counts)
+    return masks[best_idx, 0].cpu().numpy()  # (H, W) bool
 
 
 def segment_car(content, inverse=True, size=None, output_dir=None):
@@ -113,8 +108,6 @@ def segment_car(content, inverse=True, size=None, output_dir=None):
     if len(boxes_yolo) == 0:
         raise ValueError("No cars detected in image.")
 
-    boxes_yolo = _select_closest_box(boxes_yolo)
-
     sam_predictor.set_image(img)
 
     transformed_boxes = sam_predictor.transform.apply_boxes_torch(
@@ -122,16 +115,17 @@ def segment_car(content, inverse=True, size=None, output_dir=None):
         img.shape[:2]
     )
 
-    car_mask = sam_predictor.predict_torch(
+    # Run SAM on every detected box; pick the one mask with the most pixels.
+    # This selects the most prominent car by actual segmented area, and ensures
+    # exactly one mask is passed to OpenAI regardless of how many cars YOLO found.
+    masks, _, _ = sam_predictor.predict_torch(
         point_coords=None,
         point_labels=None,
         boxes=transformed_boxes,
         multimask_output=False,
     )
 
-    # Convert mask to numpy
-    mask_np = car_mask[0][0].cpu().numpy()  # shape: (1, H, W) -> need squeeze
-    mask_np = np.squeeze(mask_np)  # shape: (H, W)
+    mask_np = _pick_primary_mask(masks)
     mask_np = (mask_np * 255).astype(np.uint8)
 
     return apply_binary_mask_for_inpainting(img, mask_np, output_dir, inverse, size)

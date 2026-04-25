@@ -43,28 +43,16 @@ def test_decode_image_for_cv_applies_exif_orientation(monkeypatch):
     assert decoded.shape[:2] == (20, 10)
 
 
-def test_select_closest_box_uses_largest_area(monkeypatch):
+def test_pick_primary_mask_returns_mask_with_most_pixels(monkeypatch):
     segmentation = _load_segmentation(monkeypatch, use_real_torch=True)
 
-    boxes = segmentation.torch.tensor(
-        [
-            [0.0, 0.0, 10.0, 10.0],
-            [0.0, 0.0, 30.0, 20.0],
-            [0.0, 0.0, 15.0, 15.0],
-        ]
-    )
+    # Three masks: 100 px, 900 px (largest), 400 px
+    masks = segmentation.torch.zeros(3, 1, 30, 30, dtype=segmentation.torch.bool)
+    masks[0, 0, :10, :10] = True
+    masks[1, 0, :30, :30] = True  # largest — should be selected
+    masks[2, 0, :20, :20] = True
 
-    selected = segmentation._select_closest_box(boxes)
+    result = segmentation._pick_primary_mask(masks)
 
-    assert selected.shape == (1, 4)
-    assert selected.tolist() == [[0.0, 0.0, 30.0, 20.0]]
-
-
-def test_select_closest_box_keeps_empty_tensor(monkeypatch):
-    segmentation = _load_segmentation(monkeypatch, use_real_torch=True)
-
-    boxes = segmentation.torch.empty((0, 4))
-
-    selected = segmentation._select_closest_box(boxes)
-
-    assert selected.shape == (0, 4)
+    assert result.shape == (30, 30)
+    assert int(result.sum()) == 900
