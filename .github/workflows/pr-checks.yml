@@ -5,7 +5,21 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@dcedce43c6f43de0b836d1fe38946645c9c638dc
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   backend:
     name: Backend — lint & test
     runs-on: ubuntu-latest
@@ -20,10 +34,14 @@ jobs:
 
       - name: Install dependencies
         working-directory: car-backend-ms
-        run: pip install -r requirements.txt -r requirements-test.txt ruff
+        run: pip install -r requirements.txt -r requirements-test.txt ruff pip-audit
 
       - name: Lint (ruff)
         run: ruff check car-backend-ms/
+
+      - name: Audit dependencies
+        working-directory: car-backend-ms
+        run: pip-audit -r requirements.txt
 
       - name: Test
         working-directory: car-backend-ms
@@ -44,11 +62,16 @@ jobs:
       - name: Install dependencies
         working-directory: car-segmentation-ms
         run: |
+          pip install pip-audit
           pip install -r requirements.txt -r requirements-test.txt \
             --extra-index-url https://download.pytorch.org/whl/cpu
 
       - name: Lint (ruff)
         run: ruff check car-segmentation-ms/
+
+      - name: Audit dependencies
+        working-directory: car-segmentation-ms
+        run: pip-audit --local
 
       - name: Test
         working-directory: car-segmentation-ms
@@ -71,6 +94,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=moderate
 
       - name: Lint (ESLint)
         run: npm run lint

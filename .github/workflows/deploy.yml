@@ -6,6 +6,9 @@ on:
       - main
       - main-to-deploy-version-3
 
+permissions:
+  contents: read
+
 jobs:
   deploy-backend:
     name: Build & Deploy car-backend-ms

@@ -43,6 +43,13 @@ class TestFirebaseAuth:
         ):
             resp = client.post("/auth/firebase", json={"id_token": "bad-token"})
         assert resp.status_code == 401
+        assert resp.json()["detail"] == "Invalid or expired token"
+
+    def test_missing_email_claim_returns_400(self, client):
+        claims = {"uid": _FAKE_UID, "name": "Alice"}
+        with patch("app.routers.auth.verify_firebase_token", return_value=claims):
+            resp = client.post("/auth/firebase", json={"id_token": _FAKE_TOKEN})
+        assert resp.status_code == 400
 
     def test_missing_id_token_returns_422(self, client):
         resp = client.post("/auth/firebase", json={})

@@ -14,6 +14,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libgl1-mesa-glx \
     && rm -rf /var/lib/apt/lists/*
 
+RUN groupadd --system app && useradd --system --gid app --home-dir /app app
+
 # torch/torchvision/torchaudio are already provided by the base image.
 # Filter them out of requirements.txt before installing to avoid pip trying to
 # pull the PyPI (CUDA) variants and conflicting with the pre-installed wheels.
@@ -23,6 +25,9 @@ RUN grep -vE "^(torch|torchvision|torchaudio|#|[[:space:]]*$)" requirements.txt 
     pip install --no-cache-dir -r /tmp/requirements-no-torch.txt
 
 COPY server.py segmentation.py utils.py download_models.py ./
+RUN mkdir -p model output && chown -R app:app /app
+
+USER app
 
 # Model weights are NOT baked into the image.
 # At startup, download_models.py fetches them from the GCS bucket in MODEL_BUCKET.

@@ -1,7 +1,7 @@
 import os
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 # Must be set before server.py is imported (checked at module level)
 os.environ["OPENAI_API_KEY"] = "test-key"
@@ -13,11 +13,15 @@ _mock_seg.working_dir = str(Path(__file__).resolve().parents[1] / "output" / "te
 sys.modules["segmentation"] = _mock_seg
 
 import pytest  # noqa: E402
+import server  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from server import app  # noqa: E402
 
 
 @pytest.fixture()
 def client():
-    with TestClient(app, raise_server_exceptions=False) as c:
-        yield c
+    server._models_ready.set()
+    server._working_dir = _mock_seg.working_dir
+    with patch("server._load_models", return_value=None):
+        with TestClient(app, raise_server_exceptions=False) as c:
+            yield c

@@ -36,8 +36,12 @@ class TestEditPhoto:
         mock_client = MagicMock()
         mock_client.images.edit.return_value = mock_result
 
+        import server
+
+        server._models_ready.set()
+        server._working_dir = str(Path(__file__).resolve().parents[1] / "output" / "test-requests")
         with (
-            patch("server.segment_car", side_effect=_fake_segment),
+            patch("server._segment_car", side_effect=_fake_segment),
             patch("server.client", mock_client),
         ):
             yield mock_client
@@ -78,7 +82,7 @@ class TestEditPhoto:
         mock_client.images.edit.return_value = mock_result
 
         with (
-            patch("server.segment_car", side_effect=_fake_segment),
+            patch("server._segment_car", side_effect=_fake_segment),
             patch("server.client", mock_client),
         ):
             resp = client.post(
@@ -100,7 +104,7 @@ class TestEditPhoto:
         mock_client.images.edit.side_effect = RuntimeError("OpenAI down")
 
         with (
-            patch("server.segment_car", side_effect=_fake_segment),
+            patch("server._segment_car", side_effect=_fake_segment),
             patch("server.client", mock_client),
         ):
             resp = client.post(
@@ -109,3 +113,29 @@ class TestEditPhoto:
                 data={"prompt": "p", "edit_car": "true", "size": "1024x1024"},
             )
         assert resp.status_code == 500
+
+    def test_invalid_size_returns_422(self, client, openai_mock):
+        resp = client.post(
+            "/edit-photo",
+            files={"file": ("car.png", FAKE_PNG, "image/png")},
+            data={"prompt": "p", "edit_car": "true", "size": "999x999"},
+        )
+        assert resp.status_code == 422
+
+    def test_invalid_image_returns_415(self, client, openai_mock):
+        resp = client.post(
+            "/edit-photo",
+            files={"file": ("car.png", b"not an image", "image/png")},
+            data={"prompt": "p", "edit_car": "true"},
+        )
+        assert resp.status_code == 415
+
+    def test_large_image_dimensions_return_413(self, client, monkeypatch, openai_mock):
+        monkeypatch.setattr("server._MAX_IMAGE_DIMENSION", 5)
+        monkeypatch.setattr("server._MAX_IMAGE_PIXELS", 25)
+        resp = client.post(
+            "/edit-photo",
+            files={"file": ("car.png", FAKE_PNG, "image/png")},
+            data={"prompt": "p", "edit_car": "true"},
+        )
+        assert resp.status_code == 413

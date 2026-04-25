@@ -95,6 +95,33 @@ class TestEditPhoto:
         )
         assert resp.status_code == 415
 
+    def test_blank_prompt_returns_422(self, client, auth_headers):
+        resp = client.post(
+            "/edit-photo",
+            files={"file": ("car.jpg", FAKE_JPEG, "image/jpeg")},
+            data={"prompt": "   ", "edit_car": "true"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 422
+
+    def test_too_long_prompt_returns_422(self, client, auth_headers):
+        resp = client.post(
+            "/edit-photo",
+            files={"file": ("car.jpg", FAKE_JPEG, "image/jpeg")},
+            data={"prompt": "x" * 1001, "edit_car": "true"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 422
+
+    def test_invalid_size_returns_422(self, client, auth_headers):
+        resp = client.post(
+            "/edit-photo",
+            files={"file": ("car.jpg", FAKE_JPEG, "image/jpeg")},
+            data={"prompt": "p", "edit_car": "true", "size": "999x999"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 422
+
     def test_5xx_proxy_error_returns_502(self, client, auth_headers):
         with patch("app.routers.segmentation.proxy_service.forward_edit_photo", _http_status_error(503)):
             resp = client.post(

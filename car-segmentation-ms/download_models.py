@@ -18,16 +18,18 @@ def download_models() -> None:
 
     _MODEL_DIR.mkdir(exist_ok=True)
 
+    missing = [f for f in _MODELS if not (_MODEL_DIR / f).exists()]
+    if not missing:
+        print("  All model files already present, skipping download")
+        return
+
     from google.cloud import storage
 
     client = storage.Client()
     bucket = client.bucket(bucket_name)
 
-    for filename in _MODELS:
+    for filename in missing:
         dest = _MODEL_DIR / filename
-        if dest.exists():
-            print(f"  {filename} already present, skipping")
-            continue
         print(f"  Downloading {filename} from gs://{bucket_name}/{filename} ...")
         bucket.blob(filename).download_to_filename(str(dest))
         size_gb = dest.stat().st_size / 1e9

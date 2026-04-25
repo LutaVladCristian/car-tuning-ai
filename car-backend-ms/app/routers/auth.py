@@ -17,11 +17,13 @@ async def firebase_auth(
     """Exchange a Firebase ID token for a synced backend user record."""
     try:
         claims = verify_firebase_token(payload.id_token)
-    except FirebaseError as exc:
-        raise HTTPException(status_code=401, detail=f"Invalid Firebase token: {exc}")
+    except FirebaseError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
 
     uid: str = claims["uid"]
-    email: str = claims.get("email", "")
+    email: str | None = claims.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="Firebase token is missing an email claim")
     display_name: str | None = claims.get("name")
 
     user = db.query(User).filter(User.firebase_uid == uid).first()

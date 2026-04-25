@@ -12,7 +12,7 @@ vi.mock('react-router-dom', async (importOriginal) => {
 });
 
 vi.mock('../../context/useAuth', () => ({
-  useAuth: () => ({ login: mockLogin }),
+  useAuth: () => ({ login: mockLogin, loginWithEmail: vi.fn() }),
 }));
 
 function renderForm() {
@@ -52,7 +52,7 @@ describe('LoginForm', () => {
     renderForm();
     fireEvent.click(screen.getByRole('button', { name: /sign in with google/i }));
     await waitFor(() =>
-      expect(screen.getByText('Sign in failed. Please try again.')).toBeDefined()
+      expect(screen.getByText('Google sign in failed. Please try again.')).toBeDefined()
     );
   });
 
@@ -62,9 +62,9 @@ describe('LoginForm', () => {
     renderForm();
     fireEvent.click(screen.getByRole('button', { name: /sign in with google/i }));
     await waitFor(() => {
-      const btn = screen.getByRole('button', { name: /signing in/i });
-      expect(btn).toBeDefined();
-      expect((btn as HTMLButtonElement).disabled).toBe(true);
+      const buttons = screen.getAllByRole('button', { name: /signing in/i });
+      expect(buttons.length).toBeGreaterThan(0);
+      expect(buttons.every((btn) => (btn as HTMLButtonElement).disabled)).toBe(true);
     });
     resolve();
   });

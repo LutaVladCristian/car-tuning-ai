@@ -27,6 +27,8 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 SAM_CHECKPOINT_PATH = str(_HERE / "model" / "sam_vit_h_4b8939.pth")
 SAM_MODEL_TYPE = "vit_h"
 YOLO_DETECTION_MODEL_PATH = str(_HERE / "model" / "yolov11n.pt")
+_MAX_IMAGE_DIMENSION = 4096
+_MAX_IMAGE_PIXELS = _MAX_IMAGE_DIMENSION * _MAX_IMAGE_DIMENSION
 
 # Initialize models
 sam_predictor = initialize_sam_model(SAM_CHECKPOINT_PATH, SAM_MODEL_TYPE, DEVICE)
@@ -48,7 +50,20 @@ def segment_car(content, inverse=True, size=None, output_dir=None):
     img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
     if img is None:
-        raise TypeError("Failed to decode image. Ensure the input is a valid image file.")
+        raise ValueError("Failed to decode image. Ensure the input is a valid image file.")
+
+    height, width = img.shape[:2]
+    if (
+        width < 1
+        or height < 1
+        or width > _MAX_IMAGE_DIMENSION
+        or height > _MAX_IMAGE_DIMENSION
+        or width * height > _MAX_IMAGE_PIXELS
+    ):
+        raise ValueError(
+            "Image dimensions are too large. "
+            f"Maximum is {_MAX_IMAGE_DIMENSION}px per side and {_MAX_IMAGE_PIXELS} pixels total."
+        )
 
     # Try car-class detection first; fall back to any object if nothing found.
     results_yolo = yolo_detection_model.predict(img, classes=[2], conf=0.25)

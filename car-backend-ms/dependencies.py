@@ -35,10 +35,14 @@ async def get_current_user(
     uid: str = claims["uid"]
     user = db.query(User).filter(User.firebase_uid == uid).first()
     if user is None:
+        email = claims.get("email")
+        if not email:
+            raise HTTPException(status_code=400, detail="Firebase token is missing an email claim")
+
         # Auto-create on first authenticated request in case /auth/firebase was skipped.
         user = User(
             firebase_uid=uid,
-            email=claims.get("email", ""),
+            email=email,
             display_name=claims.get("name"),
         )
         db.add(user)

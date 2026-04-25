@@ -14,6 +14,8 @@ router = APIRouter(tags=["segmentation"])
 
 # C5: Reject uploads larger than 10 MB before forwarding to the ML service.
 _MAX_FILE_BYTES = 10 * 1024 * 1024  # 10 MB
+_MAX_PROMPT_LEN = 1000
+_ALLOWED_OUTPUT_SIZES = {"auto", "1024x1024", "1024x1536", "1536x1024"}
 
 
 def _check_file(content: bytes) -> None:
@@ -30,6 +32,26 @@ def _check_file(content: bytes) -> None:
             status_code=415,
             detail="Unsupported image format. Upload a JPEG, PNG, or WEBP file.",
         )
+
+
+def _validate_edit_params(prompt: str, size: str) -> tuple[str, str]:
+    prompt = prompt.strip()
+    if not prompt:
+        raise HTTPException(status_code=422, detail="Prompt must not be empty.")
+    if len(prompt) > _MAX_PROMPT_LEN:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Prompt must be {_MAX_PROMPT_LEN} characters or fewer.",
+        )
+
+    normalized_size = size.strip().lower()
+    if normalized_size not in _ALLOWED_OUTPUT_SIZES:
+        allowed = ", ".join(sorted(_ALLOWED_OUTPUT_SIZES))
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unsupported size. Allowed values: {allowed}.",
+        )
+    return prompt, normalized_size
 
 
 def _proxy_status(exc: httpx.HTTPStatusError) -> int:
@@ -49,6 +71,7 @@ async def edit_photo(
 ) -> StreamingResponse:
     content = await file.read()
     _check_file(content)
+    prompt, size = _validate_edit_params(prompt, size)
 
     try:
         result_bytes = await proxy_service.forward_edit_photo(

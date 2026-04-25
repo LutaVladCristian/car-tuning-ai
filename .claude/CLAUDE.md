@@ -52,9 +52,10 @@ See [README.md](../README.md#create-conda-environments) for per-service Conda en
 
 ## GitHub Actions
 
-PR checks run backend, frontend, and segmentation unit-test suites, lint/build, backend Alembic migration checks against Postgres. The workflow directory is intentionally limited to:
+Two workflows live in `.github/workflows/`:
 
-- `.github/workflows/pr-checks.yml` for pull-request checks.
+- `pr-checks.yml` — runs on pull requests: backend/frontend/segmentation unit tests, lint/build, Alembic migration check against Postgres.
+- `deploy.yml` — runs on push to `main` or `main-to-deploy-version-3`: builds Docker images, pushes to GCR, deploys all three services to Cloud Run / Firebase Hosting.
 
 ## Deploying on GCP considerations (prone to improvements)
 
@@ -72,4 +73,4 @@ API keys / model secrets → Secret Manager
 - `car-backend-ms` must stay ML-free — heavy deps (torch, ultralytics, etc.) belong only in `car-segmentation-ms`.
 - Model weights are gitignored — place in `car-segmentation-ms/model/`: `sam_vit_h_4b8939.pth`, `yolov11n.pt`.
 - Do not use plain `pip install` outside of the Conda envs.
-- CORS in `car-backend-ms/main.py` is currently hardcoded to `http://localhost:5173` — update `allow_origins` before deploying.
+- CORS origins are configured via the `CORS_ORIGINS` env var (JSON list). Production value: `["https://slick-tunes.web.app"]`; local default: `["http://localhost:5173"]`.

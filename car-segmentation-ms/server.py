@@ -5,12 +5,16 @@ import os
 import shutil
 import threading
 import uuid
+import warnings
 from contextlib import asynccontextmanager
 
+from dotenv import find_dotenv, load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from openai import OpenAI
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
+
+load_dotenv(find_dotenv())
 
 openai_key = os.getenv("OPENAI_API_KEY")
 if openai_key is None:
@@ -18,6 +22,11 @@ if openai_key is None:
 
 client = OpenAI(api_key=openai_key)
 _MAX_PROMPT_LEN = 1000
+_MAX_IMAGE_DIMENSION = 4096
+_MAX_IMAGE_PIXELS = _MAX_IMAGE_DIMENSION * _MAX_IMAGE_DIMENSION
+_ALLOWED_OUTPUT_SIZES = {"auto", "1024x1024", "1024x1536", "1536x1024"}
+Image.MAX_IMAGE_PIXELS = _MAX_IMAGE_PIXELS
+warnings.simplefilter("error", Image.DecompressionBombWarning)
 
 _models_ready = threading.Event()
 _segment_car = None
@@ -45,6 +54,42 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
+def _validate_size(size: str) -> str:
+    normalized_size = size.strip().lower()
+    if normalized_size not in _ALLOWED_OUTPUT_SIZES:
+        allowed = ", ".join(sorted(_ALLOWED_OUTPUT_SIZES))
+        raise HTTPException(status_code=422, detail=f"Unsupported size. Allowed values: {allowed}.")
+    return normalized_size
+
+
+def _read_source_dimensions(content: bytes) -> tuple[int, int]:
+    try:
+        with Image.open(io.BytesIO(content)) as source_image:
+            source_width, source_height = source_image.size
+            if (
+                source_width < 1
+                or source_height < 1
+                or source_width > _MAX_IMAGE_DIMENSION
+                or source_height > _MAX_IMAGE_DIMENSION
+                or source_width * source_height > _MAX_IMAGE_PIXELS
+            ):
+                raise HTTPException(
+                    status_code=413,
+                    detail=(
+                        "Image dimensions are too large. "
+                        f"Maximum is {_MAX_IMAGE_DIMENSION}px per side and {_MAX_IMAGE_PIXELS} pixels total."
+                    ),
+                )
+            source_image.verify()
+            return source_width, source_height
+    except HTTPException:
+        raise
+    except (Image.DecompressionBombError, Image.DecompressionBombWarning):
+        raise HTTPException(status_code=413, detail="Image dimensions are too large.")
+    except (UnidentifiedImageError, OSError):
+        raise HTTPException(status_code=415, detail="Unsupported or invalid image file.")
+
+
 @app.get("/health")
 def health():
     if not _models_ready.is_set():
@@ -70,11 +115,12 @@ async def edit_photo(
         raise HTTPException(status_code=503, detail="Models still loading, try again shortly")
 
     prompt = prompt.strip()
-    size = size.strip().lower()
+    if not prompt:
+        raise HTTPException(status_code=422, detail="Prompt must not be empty.")
+    size = _validate_size(size)
 
     content = await file.read()
-    with Image.open(io.BytesIO(content)) as source_image:
-        source_width, source_height = source_image.size
+    source_width, source_height = _read_source_dimensions(content)
     preprocessing_size = None if size == "auto" else size
 
     os.makedirs(_working_dir, exist_ok=True)
@@ -83,7 +129,7 @@ async def edit_photo(
     try:
         try:
             _segment_car(content, edit_car, preprocessing_size, output_dir=tmp_dir)
-        except ValueError as exc:
+        except (TypeError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=str(exc))
 
         image_path = os.path.join(tmp_dir, "image.png")
@@ -102,7 +148,12 @@ async def edit_photo(
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
     image_bytes = base64.b64decode(result.data[0].b64_json)
-    with Image.open(io.BytesIO(image_bytes)) as edited_image:
+    try:
+        edited_image_ctx = Image.open(io.BytesIO(image_bytes))
+    except (UnidentifiedImageError, OSError):
+        raise HTTPException(status_code=502, detail="Image provider returned invalid image data.")
+
+    with edited_image_ctx as edited_image:
         if size == "auto" and edited_image.size != (source_width, source_height):
             resampling = Image.Resampling.LANCZOS
             edited_image = edited_image.resize((source_width, source_height), resampling)
