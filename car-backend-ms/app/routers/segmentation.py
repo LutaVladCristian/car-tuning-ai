@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models.photo import OperationType, Photo
 from app.db.models.user import User
-from app.services import proxy_service
+from app.services import proxy_service, storage_service
 from dependencies import get_current_user, get_db
 
 router = APIRouter(tags=["segmentation"])
@@ -60,11 +60,15 @@ async def edit_photo(
             detail=f"Segmentation service error: {exc.response.status_code}",
         )
 
+    uid = current_user.firebase_uid
+    original_path = storage_service.upload_photo(uid, "original", content)
+    result_path = storage_service.upload_photo(uid, "result", result_bytes)
+
     photo = Photo(
         user_id=current_user.id,
         original_filename=file.filename or "image.jpg",
-        original_image=content,
-        result_image=result_bytes,
+        original_image_path=original_path,
+        result_image_path=result_path,
         operation_type=OperationType.edit_photo,
         operation_params={"prompt": prompt, "edit_car": edit_car, "size": size},
     )

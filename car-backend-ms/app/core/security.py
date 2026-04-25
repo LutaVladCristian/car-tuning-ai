@@ -15,7 +15,11 @@ def _get_app() -> firebase_admin.App:
         #   gcloud auth application-default login
         cred = credentials.ApplicationDefault()
         return firebase_admin.initialize_app(
-            cred, {"projectId": settings.FIREBASE_PROJECT_ID}
+            cred,
+            {
+                "projectId": settings.FIREBASE_PROJECT_ID,
+                "storageBucket": settings.FIREBASE_STORAGE_BUCKET,
+            },
         )
 
 

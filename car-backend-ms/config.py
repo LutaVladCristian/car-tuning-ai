@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     DATABASE_URL: str
     FIREBASE_PROJECT_ID: str
+    FIREBASE_STORAGE_BUCKET: str
     SEGMENTATION_MS_URL: str = "http://localhost:8000"
     APP_HOST: str = "0.0.0.0"
     APP_PORT: int = 8001

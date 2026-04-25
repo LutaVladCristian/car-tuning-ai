@@ -7,6 +7,8 @@ from app.db.models.photo import OperationType, Photo
 FAKE_PNG = b"\x89PNG_FAKE_BYTES"
 FAKE_JPEG = b"\xff\xd8\xff" + b"\x00" * 10
 
+_FAKE_PATH = "users/uid/photos/abc/result.png"
+
 
 def _mock_proxy(return_value=FAKE_PNG):
     return AsyncMock(return_value=return_value)
@@ -17,6 +19,10 @@ def _http_status_error(status_code: int = 503):
     mock_response.status_code = status_code
     err = httpx.HTTPStatusError("error", request=MagicMock(), response=mock_response)
     return AsyncMock(side_effect=err)
+
+
+def _mock_upload(path=_FAKE_PATH):
+    return MagicMock(return_value=path)
 
 
 class TestEditPhoto:
@@ -30,12 +36,13 @@ class TestEditPhoto:
 
     def test_success_returns_png_bytes(self, client, auth_headers):
         with patch("app.routers.segmentation.proxy_service.forward_edit_photo", _mock_proxy()):
-            resp = client.post(
-                "/edit-photo",
-                files={"file": ("car.jpg", FAKE_JPEG, "image/jpeg")},
-                data={"prompt": "make it red", "edit_car": "true"},
-                headers=auth_headers,
-            )
+            with patch("app.routers.segmentation.storage_service.upload_photo", _mock_upload()):
+                resp = client.post(
+                    "/edit-photo",
+                    files={"file": ("car.jpg", FAKE_JPEG, "image/jpeg")},
+                    data={"prompt": "make it red", "edit_car": "true"},
+                    headers=auth_headers,
+                )
         assert resp.status_code == 200
         assert resp.content == FAKE_PNG
         assert resp.headers["content-type"] == "image/png"
@@ -43,12 +50,13 @@ class TestEditPhoto:
     def test_saves_correct_operation_params(self, client, auth_headers, user_and_token, db):
         user, _ = user_and_token
         with patch("app.routers.segmentation.proxy_service.forward_edit_photo", _mock_proxy()):
-            client.post(
-                "/edit-photo",
-                files={"file": ("car.jpg", FAKE_JPEG, "image/jpeg")},
-                data={"prompt": "rally livery", "edit_car": "false", "size": "1024x1024"},
-                headers=auth_headers,
-            )
+            with patch("app.routers.segmentation.storage_service.upload_photo", _mock_upload()):
+                client.post(
+                    "/edit-photo",
+                    files={"file": ("car.jpg", FAKE_JPEG, "image/jpeg")},
+                    data={"prompt": "rally livery", "edit_car": "false", "size": "1024x1024"},
+                    headers=auth_headers,
+                )
         photo = db.query(Photo).filter(Photo.user_id == user.id).first()
         assert photo.operation_type == OperationType.edit_photo
         assert photo.operation_params["prompt"] == "rally livery"
@@ -58,12 +66,13 @@ class TestEditPhoto:
     def test_defaults_size_to_auto(self, client, auth_headers, user_and_token, db):
         user, _ = user_and_token
         with patch("app.routers.segmentation.proxy_service.forward_edit_photo", _mock_proxy()):
-            client.post(
-                "/edit-photo",
-                files={"file": ("car.jpg", FAKE_JPEG, "image/jpeg")},
-                data={"prompt": "keep resolution", "edit_car": "true"},
-                headers=auth_headers,
-            )
+            with patch("app.routers.segmentation.storage_service.upload_photo", _mock_upload()):
+                client.post(
+                    "/edit-photo",
+                    files={"file": ("car.jpg", FAKE_JPEG, "image/jpeg")},
+                    data={"prompt": "keep resolution", "edit_car": "true"},
+                    headers=auth_headers,
+                )
         photo = db.query(Photo).filter(Photo.user_id == user.id).first()
         assert photo.operation_params["size"] == "auto"
 

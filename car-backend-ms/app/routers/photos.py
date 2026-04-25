@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.db.models.photo import Photo
 from app.db.models.user import User
 from app.schemas.photo import PhotoListResponse, PhotoResponse
+from app.services import storage_service
 from dependencies import get_current_user, get_db
 
 router = APIRouter(prefix="/photos", tags=["photos"])
@@ -42,5 +43,6 @@ async def download_photo(
     if photo is None:
         raise HTTPException(status_code=404, detail="Photo not found")
 
-    image_bytes = photo.result_image or photo.original_image
-    return StreamingResponse(BytesIO(image_bytes), media_type="image/png")
+    path = photo.result_image_path or photo.original_image_path
+    data = storage_service.download_photo(path)
+    return StreamingResponse(BytesIO(data), media_type="image/png")

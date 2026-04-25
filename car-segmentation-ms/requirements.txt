@@ -20,3 +20,6 @@ python-dotenv
 openai
 requests
 charset-normalizer
+
+# GCS — model weight download at startup
+google-cloud-storage>=2.16

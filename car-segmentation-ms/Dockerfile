@@ -22,15 +22,14 @@ RUN grep -vE "^(torch|torchvision|torchaudio|#|[[:space:]]*$)" requirements.txt 
         > /tmp/requirements-no-torch.txt && \
     pip install --no-cache-dir -r /tmp/requirements-no-torch.txt
 
-COPY server.py segmentation.py utils.py ./
+COPY server.py segmentation.py utils.py download_models.py ./
 
-# Model weights baked into the image at build time.
-# Ensure car-segmentation-ms/model/ contains:
-#   sam_vit_h_4b8939.pth  (~2.4 GB)
-#   yolov11n.pt            (~5 MB)
-COPY model/ ./model/
+# Model weights are NOT baked into the image.
+# At startup, download_models.py fetches them from the GCS bucket in MODEL_BUCKET.
+# For local dev without MODEL_BUCKET set, place weights in ./model/ manually.
 
 EXPOSE 8000
 
+# download_models.py runs first; if MODEL_BUCKET is unset it exits immediately.
 # Shell form so ${PORT} expands from the Cloud Run-injected PORT env var.
-CMD uvicorn server:app --host 0.0.0.0 --port ${PORT:-8000}
+CMD python download_models.py && uvicorn server:app --host 0.0.0.0 --port ${PORT:-8000}

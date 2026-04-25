@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["FIREBASE_PROJECT_ID"] = "test-project"
+os.environ["FIREBASE_STORAGE_BUCKET"] = "test-project.firebasestorage.app"
 os.environ["SEGMENTATION_MS_URL"] = "http://fake-seg:8000"
 
 import pytest
@@ -93,15 +94,15 @@ def make_photo(db):
         user,
         filename="car.jpg",
         operation_type=OperationType.edit_photo,
-        original_image=b"original",
-        result_image=b"result",
+        original_image_path="gs://test-bucket/users/uid/photos/abc/original.png",
+        result_image_path="gs://test-bucket/users/uid/photos/abc/result.png",
         operation_params=None,
     ):
         photo = Photo(
             user_id=user.id,
             original_filename=filename,
-            original_image=original_image,
-            result_image=result_image,
+            original_image_path=original_image_path,
+            result_image_path=result_image_path,
             operation_type=operation_type,
             operation_params=operation_params or {},
         )
