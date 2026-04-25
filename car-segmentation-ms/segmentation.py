@@ -51,7 +51,7 @@ def segment_car(content, inverse=True, size=None, output_dir=None):
         raise TypeError("Failed to decode image. Ensure the input is a valid image file.")
 
     # Perform prediction using YOLO
-    results_yolo = yolo_detection_model.predict(img, classes=[2], conf=0.75)
+    results_yolo = yolo_detection_model.predict(img, classes=[2], conf=0.35)
     boxes_yolo = results_yolo[0].boxes.xyxy if len(results_yolo) > 0 else []
 
     # H1: raise instead of returning a dict so callers get a clean 400 response.

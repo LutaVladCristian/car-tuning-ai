@@ -81,7 +81,10 @@ async def edit_photo(
     tmp_dir = os.path.join(_working_dir, f"request-{uuid.uuid4().hex}")
     os.makedirs(tmp_dir)
     try:
-        _segment_car(content, edit_car, preprocessing_size, output_dir=tmp_dir)
+        try:
+            _segment_car(content, edit_car, preprocessing_size, output_dir=tmp_dir)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
 
         image_path = os.path.join(tmp_dir, "image.png")
         mask_path = os.path.join(tmp_dir, "mask.png")
