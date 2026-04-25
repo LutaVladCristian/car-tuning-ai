@@ -1,28 +1,55 @@
+import asyncio
 import base64
 import io
 import os
 import shutil
+import threading
 import uuid
+from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from openai import OpenAI
 from PIL import Image
-from segmentation import segment_car, working_dir
 
-# Initialize the FastAPI app
-app = FastAPI()
-
-# Retrieve OpenAI API Key securely
 openai_key = os.getenv("OPENAI_API_KEY")
 if openai_key is None:
     raise RuntimeError("Missing OpenAI API key")
 
-# Initialize OpenAI client
 client = OpenAI(api_key=openai_key)
-
-# C2: Maximum prompt length accepted from clients.
 _MAX_PROMPT_LEN = 1000
+
+_models_ready = threading.Event()
+_segment_car = None
+_working_dir = None
+
+
+def _load_models() -> None:
+    global _segment_car, _working_dir
+    from download_models import download_models
+    download_models()
+    import segmentation as seg
+    _segment_car = seg.segment_car
+    _working_dir = seg.working_dir
+    _models_ready.set()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Load models in a background thread so the port opens immediately.
+    # Cloud Run's TCP startup probe passes as soon as uvicorn binds the port.
+    asyncio.create_task(asyncio.to_thread(_load_models))
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+@app.get("/health")
+def health():
+    if not _models_ready.is_set():
+        raise HTTPException(status_code=503, detail="Models loading")
+    return {"status": "ok"}
 
 
 @app.post("/edit-photo")
@@ -39,7 +66,9 @@ async def edit_photo(
     edit_car: bool = Form(...),
     size: str = Form("auto"),
 ):
-    # C2: Sanitize the prompt.
+    if not _models_ready.is_set():
+        raise HTTPException(status_code=503, detail="Models still loading, try again shortly")
+
     prompt = prompt.strip()
     size = size.strip().lower()
 
@@ -48,18 +77,15 @@ async def edit_photo(
         source_width, source_height = source_image.size
     preprocessing_size = None if size == "auto" else size
 
-    # C3 + H3: Use a per-request temp directory so concurrent requests cannot
-    # overwrite each other's files, and clean it up unconditionally afterwards.
-    os.makedirs(working_dir, exist_ok=True)
-    tmp_dir = os.path.join(working_dir, f"request-{uuid.uuid4().hex}")
+    os.makedirs(_working_dir, exist_ok=True)
+    tmp_dir = os.path.join(_working_dir, f"request-{uuid.uuid4().hex}")
     os.makedirs(tmp_dir)
     try:
-        segment_car(content, edit_car, preprocessing_size, output_dir=tmp_dir)
+        _segment_car(content, edit_car, preprocessing_size, output_dir=tmp_dir)
 
         image_path = os.path.join(tmp_dir, "image.png")
         mask_path = os.path.join(tmp_dir, "mask.png")
 
-        # C1: Use context managers so file descriptors are closed promptly.
         with open(image_path, "rb") as image_f, open(mask_path, "rb") as mask_f:
             result = client.images.edit(
                 model="gpt-image-1",

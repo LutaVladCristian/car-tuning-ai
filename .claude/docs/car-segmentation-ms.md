@@ -32,7 +32,8 @@ Place in `car-segmentation-ms/model/`:
 
 | Method | Path | Input | Output |
 |---|---|---|---|
-| POST | `/edit-photo` | `file` (image), `prompt` (str), `edit_car` (bool), `size` (str) | PNG — AI-edited result |
+| GET | `/health` | — | `{"status":"ok"}` once models are ready; HTTP 503 while loading |
+| POST | `/edit-photo` | `file` (image), `prompt` (str), `edit_car` (bool), `size` (str) | PNG — AI-edited result; HTTP 503 if models are still loading |
 
 `/edit-photo` writes intermediate files to a per-request temp dir `output/request-<uuid>/` (cleaned up in a `finally` block after the OpenAI call), then calls `gpt-image-1` via the OpenAI API.
 
@@ -60,7 +61,14 @@ Binary mask
 7. Save `<tmp_dir>/mask.png`
 8. Return numpy RGBA array
 
+## Startup Behaviour
+
+Models are loaded in a background thread via `asyncio.to_thread` so uvicorn binds the port immediately. Cloud Run's TCP startup probe passes as soon as the port opens; `download_models.py` and model weight loading into GPU memory then complete in the background. `GET /health` and `POST /edit-photo` both return HTTP 503 until `_models_ready` is set.
+
+`download_models.py` is no longer called from the Dockerfile `CMD` — it is imported and called inside `_load_models()` in `server.py`.
+
 **Failure modes:**
+- Models not yet ready → HTTP 503: `"Models still loading, try again shortly"`
 - No car detected by YOLOv11n → HTTP 400: `"No cars detected in the image"`
 - CUDA unavailable → silently falls back to CPU (inference is significantly slower)
 - OpenAI API error → propagates as HTTP 500

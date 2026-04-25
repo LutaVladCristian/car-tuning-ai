@@ -32,4 +32,4 @@ EXPOSE 8000
 
 # download_models.py runs first; if MODEL_BUCKET is unset it exits immediately.
 # Shell form so ${PORT} expands from the Cloud Run-injected PORT env var.
-CMD python download_models.py && uvicorn server:app --host 0.0.0.0 --port ${PORT:-8000}
+CMD uvicorn server:app --host 0.0.0.0 --port ${PORT:-8000}

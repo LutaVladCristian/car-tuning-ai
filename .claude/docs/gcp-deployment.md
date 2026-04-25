@@ -19,7 +19,7 @@
 ### Create bucket
 ```bash
 gcloud storage buckets create gs://car-tuning-ai-vision-models \
-  --location=us-central1 \
+  --location=europe-west1 \
   --uniform-bucket-level-access
 ```
 
@@ -36,7 +36,7 @@ gcloud iam service-accounts create segmentation-ms-sa \
   --display-name="car-segmentation-ms Cloud Run SA"
 
 gcloud storage buckets add-iam-policy-binding gs://car-tuning-ai-vision-models \
-  --member="serviceAccount:segmentation-ms-sa@PROJECT_ID.iam.gserviceaccount.com" \
+  --member="serviceAccount:segmentation-ms-sa@car-tuning-ai-494319.iam.gserviceaccount.com" \
   --role="roles/storage.objectViewer"
 ```
 
@@ -47,7 +47,7 @@ How it works: `car-segmentation-ms/download_models.py` runs before uvicorn at ea
 ## 2. Firebase Storage — Photo Images
 
 ### Enable in Firebase console
-Firebase console → Storage → Get started → note bucket name (`PROJECT_ID.firebasestorage.app`).
+Firebase console → Storage → Get started → note bucket name (`car-tuning-ai-494319.firebasestorage.app`).
 
 ### Security rules
 ```
@@ -90,11 +90,11 @@ gcloud iam service-accounts create backend-ms-sa \
   --display-name="car-backend-ms Cloud Run SA"
 
 gcloud secrets add-iam-policy-binding car-backend-db-url \
-  --member="serviceAccount:backend-ms-sa@PROJECT_ID.iam.gserviceaccount.com" \
+  --member="serviceAccount:backend-ms-sa@car-tuning-ai-494319.iam.gserviceaccount.com" \
   --role="roles/secretmanager.secretAccessor"
 
 gcloud secrets add-iam-policy-binding car-backend-openai-key \
-  --member="serviceAccount:segmentation-ms-sa@PROJECT_ID.iam.gserviceaccount.com" \
+  --member="serviceAccount:segmentation-ms-sa@car-tuning-ai-494319.iam.gserviceaccount.com" \
   --role="roles/secretmanager.secretAccessor"
 ```
 
@@ -108,35 +108,45 @@ Secrets are injected as env vars in `gcloud run deploy` via `--update-secrets`.
 ```bash
 gcloud auth configure-docker
 
-docker build -t gcr.io/PROJECT_ID/car-backend-ms car-backend-ms/
-docker push gcr.io/PROJECT_ID/car-backend-ms
+docker build -t gcr.io/car-tuning-ai-494319/car-backend-ms car-backend-ms/
+docker push gcr.io/car-tuning-ai-494319/car-backend-ms
 
-docker build -t gcr.io/PROJECT_ID/car-segmentation-ms car-segmentation-ms/
-docker push gcr.io/PROJECT_ID/car-segmentation-ms
+docker build -t gcr.io/car-tuning-ai-494319/car-segmentation-ms car-segmentation-ms/
+docker push gcr.io/car-tuning-ai-494319/car-segmentation-ms
 ```
 
 ### Deploy backend
 ```bash
 gcloud run deploy car-backend-ms \
-  --image gcr.io/PROJECT_ID/car-backend-ms \
-  --region us-central1 \
-  --service-account backend-ms-sa@PROJECT_ID.iam.gserviceaccount.com \
+  --image gcr.io/car-tuning-ai-494319/car-backend-ms \
+  --region europe-west1 \
+  --service-account backend-ms-sa@car-tuning-ai-494319.iam.gserviceaccount.com \
   --update-secrets DATABASE_URL=car-backend-db-url:latest \
-  --set-env-vars "FIREBASE_PROJECT_ID=PROJECT_ID,FIREBASE_STORAGE_BUCKET=PROJECT_ID.firebasestorage.app,SEGMENTATION_MS_URL=https://car-segmentation-ms-HASH-uc.a.run.app,CORS_ORIGINS=[\"https://PROJECT_ID.web.app\"]" \
+  --set-env-vars "FIREBASE_PROJECT_ID=car-tuning-ai-494319,FIREBASE_STORAGE_BUCKET=car-tuning-ai-494319.firebasestorage.app,SEGMENTATION_MS_URL=https://car-segmentation-ms-HASH-uc.a.run.app,CORS_ORIGINS=[\"https://car-tuning-ai-494319.web.app\"]" \
   --allow-unauthenticated
 ```
 
 ### Deploy segmentation-ms (internal-only)
 ```bash
 gcloud run deploy car-segmentation-ms \
-  --image gcr.io/PROJECT_ID/car-segmentation-ms \
-  --region us-central1 \
-  --service-account segmentation-ms-sa@PROJECT_ID.iam.gserviceaccount.com \
+  --image gcr.io/car-tuning-ai-494319/car-segmentation-ms \
+  --region europe-west1 \
+  --service-account segmentation-ms-sa@car-tuning-ai-494319.iam.gserviceaccount.com \
   --update-secrets OPENAI_API_KEY=car-backend-openai-key:latest \
-  --set-env-vars MODEL_BUCKET=car-tuning-ai-models \
+  --set-env-vars MODEL_BUCKET=car-tuning-ai-vision-models \
   --no-allow-unauthenticated \
-  --ingress internal
+  --ingress internal \
+  --startup-cpu-boost \
+  --gpu 1 \
+  --gpu-type nvidia-l4 \
+  --cpu 8 \
+  --memory 32Gi \
+  --concurrency 1 \
+  --no-cpu-throttling \
+  --timeout 600
 ```
+
+> **Note:** The container starts uvicorn immediately and downloads model weights (~2.56 GB SAM + YOLO) in a background thread. The service returns HTTP 503 on all endpoints until models are ready. Cloud Run's TCP startup probe passes as soon as the port opens.
 
 ---
 
@@ -161,7 +171,7 @@ firebase deploy --only hosting
 | Variable | Where used | Secret Manager? |
 |---|---|---|
 | `DATABASE_URL` | backend-ms | Yes — `car-backend-db-url` |
-| `FIREBASE_PROJECT_ID` | backend-ms | No |
+| `FIREBASE_car-tuning-ai-494319` | backend-ms | No |
 | `FIREBASE_STORAGE_BUCKET` | backend-ms | No |
 | `SEGMENTATION_MS_URL` | backend-ms | No |
 | `CORS_ORIGINS` | backend-ms | No |
