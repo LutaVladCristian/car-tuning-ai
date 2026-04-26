@@ -6,6 +6,10 @@ from PIL import Image
 from segment_anything import SamPredictor, sam_model_registry
 from ultralytics import YOLO
 
+_BACKGROUND_PROTECT_MARGIN_RATIO = 0.008
+_BACKGROUND_PROTECT_MARGIN_MIN_PX = 6
+_BACKGROUND_PROTECT_MARGIN_MAX_PX = 24
+
 
 def initialize_sam_model(checkpoint_path, model_type, device):
     """Initialize the SAM model."""
@@ -20,12 +24,24 @@ def initialize_yolo_model(model_path, device):
     return model
 
 
+def _expand_mask_for_background_edit(binary_mask):
+    """Protect a small margin around the car when only the background is editable."""
+    height, width = binary_mask.shape[:2]
+    radius = int(round(min(height, width) * _BACKGROUND_PROTECT_MARGIN_RATIO))
+    radius = max(_BACKGROUND_PROTECT_MARGIN_MIN_PX, min(_BACKGROUND_PROTECT_MARGIN_MAX_PX, radius))
+    kernel_size = (radius * 2) + 1
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
+    return cv2.dilate(binary_mask, kernel, iterations=1)
+
+
 def apply_binary_mask_for_inpainting(image, mask, output_dir, edit_car=False, size=None):
     """
     Save image.png and an OpenAI-compatible mask.png.
 
     The input mask uses white pixels for the SAM car foreground. OpenAI image
     edits use alpha=0 for editable pixels and alpha=255 for protected pixels.
+    Background edits expand the protected car mask slightly so the image model
+    does not repaint car edges, wheels, mirrors, or trim into a different scale.
     """
 
     os.makedirs(output_dir, exist_ok=True)
@@ -47,6 +63,9 @@ def apply_binary_mask_for_inpainting(image, mask, output_dir, edit_car=False, si
 
     mask = cv2.resize(mask, (image.shape[1], image.shape[0]), interpolation=cv2.INTER_NEAREST)
     _, binary_mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
+
+    if not edit_car:
+        binary_mask = _expand_mask_for_background_edit(binary_mask)
 
     car_pixels = binary_mask == 255
     editable_pixels = car_pixels if edit_car else ~car_pixels

@@ -95,8 +95,9 @@ describe('buildPrompt', () => {
     expect(prompt).toContain('photorealistic urban city street');
     expect(prompt).toContain('golden hour sunset');
     expect(prompt).toContain('clear sky');
-    expect(prompt).toContain('clean static display shot');
+    expect(prompt).toContain('clean static display environment');
     expect(prompt).toContain('Keep the car exactly as it is');
+    expect(prompt).toContain('car bounding box, car scale, and car position');
   });
 
   it('builds a background replacement prompt from scene settings', () => {
@@ -115,7 +116,8 @@ describe('buildPrompt', () => {
     expect(prompt).toContain('scenic mountain road');
     expect(prompt).toContain('nighttime with city lights');
     expect(prompt).toContain('dense atmospheric fog');
-    expect(prompt).toContain('dramatic low-angle cinematic composition');
+    expect(prompt).toContain('dramatic cinematic lighting with stronger contrast');
+    expect(prompt).not.toContain('low-angle');
     expect(prompt).toContain('Keep the car exactly as it is');
   });
 });
