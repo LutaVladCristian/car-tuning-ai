@@ -28,7 +28,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Constants for initialization
 SAM_CHECKPOINT_PATH = str(_HERE / "model" / "sam_vit_h_4b8939.pth")
 SAM_MODEL_TYPE = "vit_h"
-YOLO_DETECTION_MODEL_PATH = str(_HERE / "model" / "yolov10n.pt")
+YOLO_DETECTION_MODEL_PATH = str(_HERE / "model" / "yolo11n.pt")
 _MAX_IMAGE_DIMENSION = 4096
 _MAX_IMAGE_PIXELS = _MAX_IMAGE_DIMENSION * _MAX_IMAGE_DIMENSION
 _YOLO_IMGSZ = 640  # YOLO10n native training resolution

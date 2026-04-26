@@ -11,11 +11,6 @@ _MODELS = ["sam_vit_h_4b8939.pth", "yolo11n.pt"]
 
 
 def download_models() -> None:
-    bucket_name = os.getenv("MODEL_BUCKET")
-    if not bucket_name:
-        print("MODEL_BUCKET not set — skipping download, expecting models in ./model/")
-        return
-
     _MODEL_DIR.mkdir(exist_ok=True)
 
     missing = [f for f in _MODELS if not (_MODEL_DIR / f).exists()]
@@ -23,9 +18,24 @@ def download_models() -> None:
         print("  All model files already present, skipping download")
         return
 
-    from google.cloud import storage
+    bucket_name = os.getenv("MODEL_BUCKET")
+    if not bucket_name:
+        raise RuntimeError(
+            f"Missing model files {missing} and MODEL_BUCKET is not set. "
+            "Place the weights manually in car-segmentation-ms/model/ for local development."
+        )
 
-    client = storage.Client()
+    from google.cloud import storage
+    try:
+        client = storage.Client()
+    except Exception as exc:
+        raise RuntimeError(
+            f"Missing model files {missing} but cannot authenticate with GCS. "
+            "For local dev, place the weights directly in car-segmentation-ms/model/ "
+            "instead of relying on MODEL_BUCKET. "
+            f"GCS error: {exc}"
+        ) from exc
+
     bucket = client.bucket(bucket_name)
 
     for filename in missing:
