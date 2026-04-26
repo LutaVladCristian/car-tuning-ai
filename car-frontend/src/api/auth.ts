@@ -1,12 +1,7 @@
 import { apiClient } from './client';
-import type { RegisterRequest, RegisterResponse, LoginRequest, TokenResponse } from '../types/auth';
+import type { UserResponse } from '../types/auth';
 
-export async function registerUser(data: RegisterRequest): Promise<RegisterResponse> {
-  const res = await apiClient.post<RegisterResponse>('/auth/register', data);
-  return res.data;
-}
-
-export async function loginUser(data: LoginRequest): Promise<TokenResponse> {
-  const res = await apiClient.post<TokenResponse>('/auth/login', data);
+export async function syncFirebaseUser(idToken: string): Promise<UserResponse> {
+  const res = await apiClient.post<UserResponse>('/auth/firebase', { id_token: idToken });
   return res.data;
 }

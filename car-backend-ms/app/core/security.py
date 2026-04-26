@@ -1,34 +1,29 @@
-import secrets
-from datetime import UTC, datetime, timedelta
-
-from jose import JWTError, jwt
-from passlib.context import CryptContext
+import firebase_admin
+from firebase_admin import auth, credentials
 
 from config import get_settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def _get_app() -> firebase_admin.App:
+    """Return the default Firebase app, initializing it on first call."""
+    try:
+        return firebase_admin.get_app()
+    except ValueError:
+        settings = get_settings()
+        # On Cloud Run, Application Default Credentials are picked up automatically
+        # from the attached service account. Locally, run:
+        #   gcloud auth application-default login
+        cred = credentials.ApplicationDefault()
+        return firebase_admin.initialize_app(
+            cred,
+            {
+                "projectId": settings.FIREBASE_PROJECT_ID,
+                "storageBucket": settings.FIREBASE_STORAGE_BUCKET,
+            },
+        )
 
 
-def hash_password(plain: str) -> str:
-    return pwd_context.hash(plain)
-
-
-def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
-
-JWT_SECRET_KEY=secrets.token_hex(32)
-
-def create_access_token(subject: str) -> str:
-    settings = get_settings()
-    expire = datetime.now(UTC) + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
-    payload = {"sub": subject, "exp": expire}
-    return jwt.encode(payload, JWT_SECRET_KEY, algorithm="HS256")
-
-
-def decode_access_token(token: str) -> str:
-    # H6: Explicitly require exp validation — some python-jose versions skip it by default.
-    payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"], options={"verify_exp": True})
-    sub: str = payload.get("sub")
-    if sub is None:
-        raise JWTError("Missing subject in token")
-    return sub
+def verify_firebase_token(id_token: str) -> dict:
+    """Verify a Firebase ID token and return the decoded claims."""
+    _get_app()
+    return auth.verify_id_token(id_token)

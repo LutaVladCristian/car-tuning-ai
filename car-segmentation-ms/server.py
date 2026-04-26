@@ -1,80 +1,100 @@
+import asyncio
 import base64
 import io
 import os
 import shutil
+import threading
 import uuid
+import warnings
+from contextlib import asynccontextmanager
 
+from dotenv import find_dotenv, load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from openai import OpenAI
-from PIL import Image
-from segmentation import segment_car, segment_car_part, working_dir
+from PIL import Image, UnidentifiedImageError
 
-# Initialize the FastAPI app
-app = FastAPI()
+load_dotenv(find_dotenv())
 
-# Retrieve OpenAI API Key securely
 openai_key = os.getenv("OPENAI_API_KEY")
 if openai_key is None:
     raise RuntimeError("Missing OpenAI API key")
 
-# Initialize OpenAI client
 client = OpenAI(api_key=openai_key)
-
-# C2: Maximum prompt length accepted from clients.
 _MAX_PROMPT_LEN = 1000
+_MAX_IMAGE_DIMENSION = 4096
+_MAX_IMAGE_PIXELS = _MAX_IMAGE_DIMENSION * _MAX_IMAGE_DIMENSION
+_ALLOWED_OUTPUT_SIZES = {"auto", "1024x1024", "1024x1536", "1536x1024"}
+Image.MAX_IMAGE_PIXELS = _MAX_IMAGE_PIXELS
+warnings.simplefilter("error", Image.DecompressionBombWarning)
 
-# M2: Valid range for car-part class IDs (YOLO COCO classes 0-79, with margin).
-_MAX_CAR_PART_ID = 200
+_models_ready = threading.Event()
+_segment_car = None
+_working_dir = None
 
 
-@app.post("/car-segmentation")
-async def car_segmentation_sam(
-    file: UploadFile = File(...),
-    inverse: bool = Form(...),
-):
-    content = await file.read()
+def _load_models() -> None:
+    global _segment_car, _working_dir
+    from download_models import download_models
+    download_models()
+    import segmentation as seg
+    _segment_car = seg.segment_car
+    _working_dir = seg.working_dir
+    _models_ready.set()
 
-    # H1: segment_car raises ValueError when no car is detected.
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Load models in a background thread so the port opens immediately.
+    # Cloud Run's TCP startup probe passes as soon as uvicorn binds the port.
+    asyncio.create_task(asyncio.to_thread(_load_models))
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+def _validate_size(size: str) -> str:
+    normalized_size = size.strip().lower()
+    if normalized_size not in _ALLOWED_OUTPUT_SIZES:
+        allowed = ", ".join(sorted(_ALLOWED_OUTPUT_SIZES))
+        raise HTTPException(status_code=422, detail=f"Unsupported size. Allowed values: {allowed}.")
+    return normalized_size
+
+
+def _read_source_dimensions(content: bytes) -> tuple[int, int]:
     try:
-        image_stream = segment_car(content, inverse)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        with Image.open(io.BytesIO(content)) as source_image:
+            source_width, source_height = source_image.size
+            if (
+                source_width < 1
+                or source_height < 1
+                or source_width > _MAX_IMAGE_DIMENSION
+                or source_height > _MAX_IMAGE_DIMENSION
+                or source_width * source_height > _MAX_IMAGE_PIXELS
+            ):
+                raise HTTPException(
+                    status_code=413,
+                    detail=(
+                        "Image dimensions are too large. "
+                        f"Maximum is {_MAX_IMAGE_DIMENSION}px per side and {_MAX_IMAGE_PIXELS} pixels total."
+                    ),
+                )
+            source_image.verify()
+            return source_width, source_height
+    except HTTPException:
+        raise
+    except (Image.DecompressionBombError, Image.DecompressionBombWarning):
+        raise HTTPException(status_code=413, detail="Image dimensions are too large.")
+    except (UnidentifiedImageError, OSError):
+        raise HTTPException(status_code=415, detail="Unsupported or invalid image file.")
 
-    image = Image.fromarray(image_stream.astype("uint8"))
-    buffer = io.BytesIO()
-    image.save(buffer, format="PNG")
-    buffer.seek(0)
 
-    return StreamingResponse(buffer, media_type="image/png")
-
-
-@app.post("/car-part-segmentation")
-async def segment_part(
-    file: UploadFile = File(...),
-    carPartId: int = Form(...),
-    inverse: bool = Form(...),
-):
-    # M2: Validate car part ID range.
-    if not (0 <= carPartId <= _MAX_CAR_PART_ID):
-        raise HTTPException(
-            status_code=422,
-            detail=f"carPartId must be between 0 and {_MAX_CAR_PART_ID}.",
-        )
-
-    content = await file.read()
-
-    try:
-        image_stream = segment_car_part(content, carPartId, inverse)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-
-    image = Image.fromarray(image_stream.astype("uint8"))
-    buffer = io.BytesIO()
-    image.save(buffer, format="PNG")
-    buffer.seek(0)
-
-    return StreamingResponse(buffer, media_type="image/png")
+@app.get("/health")
+def health():
+    if not _models_ready.is_set():
+        raise HTTPException(status_code=503, detail="Models loading")
+    return {"status": "ok"}
 
 
 @app.post("/edit-photo")
@@ -91,27 +111,30 @@ async def edit_photo(
     edit_car: bool = Form(...),
     size: str = Form("auto"),
 ):
-    # C2: Sanitize the prompt.
+    if not _models_ready.is_set():
+        raise HTTPException(status_code=503, detail="Models still loading, try again shortly")
+
     prompt = prompt.strip()
-    size = size.strip().lower()
+    if not prompt:
+        raise HTTPException(status_code=422, detail="Prompt must not be empty.")
+    size = _validate_size(size)
 
     content = await file.read()
-    with Image.open(io.BytesIO(content)) as source_image:
-        source_width, source_height = source_image.size
+    source_width, source_height = _read_source_dimensions(content)
     preprocessing_size = None if size == "auto" else size
 
-    # C3 + H3: Use a per-request temp directory so concurrent requests cannot
-    # overwrite each other's files, and clean it up unconditionally afterwards.
-    os.makedirs(working_dir, exist_ok=True)
-    tmp_dir = os.path.join(working_dir, f"request-{uuid.uuid4().hex}")
+    os.makedirs(_working_dir, exist_ok=True)
+    tmp_dir = os.path.join(_working_dir, f"request-{uuid.uuid4().hex}")
     os.makedirs(tmp_dir)
     try:
-        segment_car(content, edit_car, preprocessing_size, output_dir=tmp_dir)
+        try:
+            _segment_car(content, edit_car, preprocessing_size, output_dir=tmp_dir)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
 
         image_path = os.path.join(tmp_dir, "image.png")
         mask_path = os.path.join(tmp_dir, "mask.png")
 
-        # C1: Use context managers so file descriptors are closed promptly.
         with open(image_path, "rb") as image_f, open(mask_path, "rb") as mask_f:
             result = client.images.edit(
                 model="gpt-image-1",
@@ -125,7 +148,12 @@ async def edit_photo(
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
     image_bytes = base64.b64decode(result.data[0].b64_json)
-    with Image.open(io.BytesIO(image_bytes)) as edited_image:
+    try:
+        edited_image_ctx = Image.open(io.BytesIO(image_bytes))
+    except (UnidentifiedImageError, OSError):
+        raise HTTPException(status_code=502, detail="Image provider returned invalid image data.")
+
+    with edited_image_ctx as edited_image:
         if size == "auto" and edited_image.size != (source_width, source_height):
             resampling = Image.Resampling.LANCZOS
             edited_image = edited_image.resize((source_width, source_height), resampling)

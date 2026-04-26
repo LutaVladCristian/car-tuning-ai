@@ -1,0 +1,127 @@
+name: Deploy to Cloud Run
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  deploy-backend:
+    name: Build & Deploy car-backend-ms
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+
+      - name: Authenticate to GCP
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          echo "$GCP_SA_KEY" | gcloud auth activate-service-account --key-file=-
+          gcloud config set project car-tuning-ai-494319
+
+      - name: Configure Docker for GCR
+        run: gcloud auth configure-docker --quiet
+
+      - name: Build and push backend image
+        run: |
+          docker build -t gcr.io/car-tuning-ai-494319/car-backend-ms car-backend-ms/
+          docker push gcr.io/car-tuning-ai-494319/car-backend-ms
+
+      - name: Deploy backend to Cloud Run
+        run: |
+          gcloud run deploy car-backend-ms \
+            --image gcr.io/car-tuning-ai-494319/car-backend-ms \
+            --region europe-west1 \
+            --service-account backend-ms-sa@car-tuning-ai-494319.iam.gserviceaccount.com \
+            --add-cloudsql-instances car-tuning-ai-494319:europe-west1:car-tuning-db \
+            --update-secrets DATABASE_URL=car-backend-db-url:latest \
+            --set-env-vars "FIREBASE_PROJECT_ID=slick-tunes,FIREBASE_STORAGE_BUCKET=slick-tunes.firebasestorage.app,SEGMENTATION_MS_URL=https://car-segmentation-ms-130079365217.europe-west1.run.app,CORS_ORIGINS=[\"https://slick-tunes.web.app\"]" \
+            --allow-unauthenticated
+
+  deploy-segmentation:
+    name: Build & Deploy car-segmentation-ms
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+
+      - name: Authenticate to GCP
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          echo "$GCP_SA_KEY" | gcloud auth activate-service-account --key-file=-
+          gcloud config set project car-tuning-ai-494319
+
+      - name: Configure Docker for GCR
+        run: gcloud auth configure-docker --quiet
+
+      - name: Build and push segmentation image
+        run: |
+          docker build -t gcr.io/car-tuning-ai-494319/car-segmentation-ms car-segmentation-ms/
+          docker push gcr.io/car-tuning-ai-494319/car-segmentation-ms
+
+      - name: Deploy segmentation to Cloud Run
+        run: |
+          gcloud run deploy car-segmentation-ms \
+            --image gcr.io/car-tuning-ai-494319/car-segmentation-ms \
+            --region europe-west1 \
+            --service-account segmentation-ms-sa@car-tuning-ai-494319.iam.gserviceaccount.com \
+            --update-secrets OPENAI_API_KEY=car-backend-openai-key:latest \
+            --set-env-vars MODEL_BUCKET=car-tuning-ai-vision-models \
+            --no-allow-unauthenticated \
+            --ingress all \
+            --cpu-boost \
+            --gpu 1 \
+            --gpu-type nvidia-l4 \
+            --cpu 8 \
+            --memory 16Gi \
+            --concurrency 1 \
+            --max-instances 1 \
+            --no-gpu-zonal-redundancy \
+            --no-cpu-throttling \
+            --timeout 600
+
+  deploy-frontend:
+    name: Build & Deploy car-frontend
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        working-directory: car-frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: car-frontend
+        env:
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+        run: npm run build
+
+      - name: Deploy to Firebase Hosting
+        working-directory: car-frontend
+        env:
+          FIREBASE_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_SLICK_TUNES }}
+        run: |
+          echo "$FIREBASE_SA_KEY" > /tmp/firebase-key.json
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/firebase-key.json
+          npx firebase-tools deploy --only hosting --project slick-tunes
+          rm /tmp/firebase-key.json

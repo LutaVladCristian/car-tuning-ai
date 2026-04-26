@@ -2,38 +2,43 @@ import httpx
 
 from config import get_settings
 
+_METADATA_TOKEN_URL = (
+    "http://metadata.google.internal/computeMetadata/v1/instance/"
+    "service-accounts/default/identity"
+)
 
-# M8: Single internal helper avoids repeating timeout/URL construction logic.
+
+async def _identity_token(audience: str) -> str | None:
+    """Fetch a GCP-signed identity token for Cloud Run IAM auth. Returns None outside GCP."""
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            resp = await client.get(
+                _METADATA_TOKEN_URL,
+                params={"audience": audience},
+                headers={"Metadata-Flavor": "Google"},
+            )
+            resp.raise_for_status()
+            return resp.text
+    except Exception:
+        return None
+
+
 async def _forward(path: str, files: dict, data: dict, timeout: float) -> bytes:
     settings = get_settings()
+    base_url = settings.SEGMENTATION_MS_URL
+
+    token = await _identity_token(base_url)
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+
     async with httpx.AsyncClient(timeout=timeout) as client:
         resp = await client.post(
-            f"{settings.SEGMENTATION_MS_URL}{path}",
+            f"{base_url}{path}",
             files=files,
             data=data,
+            headers=headers,
         )
         resp.raise_for_status()
         return resp.content
-
-
-async def forward_car_segmentation(content: bytes, filename: str, inverse: bool) -> bytes:
-    return await _forward(
-        "/car-segmentation",
-        {"file": (filename, content, "image/jpeg")},
-        {"inverse": str(inverse).lower()},
-        timeout=120.0,
-    )
-
-
-async def forward_car_part_segmentation(
-    content: bytes, filename: str, car_part_id: int, inverse: bool
-) -> bytes:
-    return await _forward(
-        "/car-part-segmentation",
-        {"file": (filename, content, "image/jpeg")},
-        {"carPartId": str(car_part_id), "inverse": str(inverse).lower()},
-        timeout=120.0,
-    )
 
 
 async def forward_edit_photo(

@@ -16,6 +16,7 @@
 *.egg
 *.egg-info/
 .pytest_cache/
+.tmp-pytest-utils/
 .mypy_cache/
 .ruff_cache/
 venv/
@@ -27,6 +28,8 @@ venv/
 **/node_modules/
 .vite/
 car-frontend/dist/
+# Firebase CLI cache (hosting deploy cache, not config)
+car-frontend/.firebase/
 
 # =============================================================================
 # LOGS
@@ -54,7 +57,8 @@ Thumbs.db
 # PROJECT-SPECIFIC
 # =============================================================================
 # ML model weights (large binaries — obtain separately)
-car-segmentation-ms/model/
+car-segmentation-ms/car-segmentation-ms
+car-segmentation-ms/model
 # Test data
 car-segmentation-ms/input/
 car-segmentation-ms/output/

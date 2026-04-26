@@ -7,13 +7,15 @@ from sqlalchemy.orm import Session
 
 from app.db.models.photo import OperationType, Photo
 from app.db.models.user import User
-from app.services import proxy_service
+from app.services import proxy_service, storage_service
 from dependencies import get_current_user, get_db
 
 router = APIRouter(tags=["segmentation"])
 
 # C5: Reject uploads larger than 10 MB before forwarding to the ML service.
 _MAX_FILE_BYTES = 10 * 1024 * 1024  # 10 MB
+_MAX_PROMPT_LEN = 1000
+_ALLOWED_OUTPUT_SIZES = {"auto", "1024x1024", "1024x1536", "1536x1024"}
 
 
 def _check_file(content: bytes) -> None:
@@ -32,79 +34,30 @@ def _check_file(content: bytes) -> None:
         )
 
 
+def _validate_edit_params(prompt: str, size: str) -> tuple[str, str]:
+    prompt = prompt.strip()
+    if not prompt:
+        raise HTTPException(status_code=422, detail="Prompt must not be empty.")
+    if len(prompt) > _MAX_PROMPT_LEN:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Prompt must be {_MAX_PROMPT_LEN} characters or fewer.",
+        )
+
+    normalized_size = size.strip().lower()
+    if normalized_size not in _ALLOWED_OUTPUT_SIZES:
+        allowed = ", ".join(sorted(_ALLOWED_OUTPUT_SIZES))
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unsupported size. Allowed values: {allowed}.",
+        )
+    return prompt, normalized_size
+
+
 def _proxy_status(exc: httpx.HTTPStatusError) -> int:
     """M7: Pass 4xx errors through; convert 5xx to 502 Bad Gateway."""
     seg_status = exc.response.status_code
     return seg_status if 400 <= seg_status < 500 else 502
-
-
-@router.post("/car-segmentation")
-async def car_segmentation(
-    file: UploadFile = File(...),
-    inverse: bool = Form(...),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> StreamingResponse:
-    content = await file.read()
-    _check_file(content)
-
-    try:
-        result_bytes = await proxy_service.forward_car_segmentation(
-            content, file.filename or "image.jpg", inverse
-        )
-    except httpx.HTTPStatusError as exc:
-        raise HTTPException(
-            status_code=_proxy_status(exc),
-            detail=f"Segmentation service error: {exc.response.status_code}",
-        )
-
-    photo = Photo(
-        user_id=current_user.id,
-        original_filename=file.filename or "image.jpg",
-        original_image=content,
-        result_image=result_bytes,
-        operation_type=OperationType.car_segmentation,
-        operation_params={"inverse": inverse},
-    )
-    db.add(photo)
-    db.commit()
-
-    return StreamingResponse(BytesIO(result_bytes), media_type="image/png")
-
-
-@router.post("/car-part-segmentation")
-async def car_part_segmentation(
-    file: UploadFile = File(...),
-    carPartId: int = Form(...),
-    inverse: bool = Form(...),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> StreamingResponse:
-    content = await file.read()
-    _check_file(content)
-
-    try:
-        result_bytes = await proxy_service.forward_car_part_segmentation(
-            content, file.filename or "image.jpg", carPartId, inverse
-        )
-    except httpx.HTTPStatusError as exc:
-        raise HTTPException(
-            status_code=_proxy_status(exc),
-            detail=f"Segmentation service error: {exc.response.status_code}",
-        )
-
-    photo = Photo(
-        user_id=current_user.id,
-        original_filename=file.filename or "image.jpg",
-        original_image=content,
-        result_image=result_bytes,
-        operation_type=OperationType.car_part_segmentation,
-        operation_params={"carPartId": carPartId, "inverse": inverse},
-    )
-    db.add(photo)
-    db.commit()
-
-    return StreamingResponse(BytesIO(result_bytes), media_type="image/png")
 
 
 @router.post("/edit-photo")
@@ -118,6 +71,7 @@ async def edit_photo(
 ) -> StreamingResponse:
     content = await file.read()
     _check_file(content)
+    prompt, size = _validate_edit_params(prompt, size)
 
     try:
         result_bytes = await proxy_service.forward_edit_photo(
@@ -129,11 +83,15 @@ async def edit_photo(
             detail=f"Segmentation service error: {exc.response.status_code}",
         )
 
+    uid = current_user.firebase_uid
+    original_path = storage_service.upload_photo(uid, "original", content)
+    result_path = storage_service.upload_photo(uid, "result", result_bytes)
+
     photo = Photo(
         user_id=current_user.id,
         original_filename=file.filename or "image.jpg",
-        original_image=content,
-        result_image=result_bytes,
+        original_image_path=original_path,
+        result_image_path=result_path,
         operation_type=OperationType.edit_photo,
         operation_params={"prompt": prompt, "edit_car": edit_car, "size": size},
     )

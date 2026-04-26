@@ -1,94 +1,102 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { AuthProvider } from './AuthContext';
-import { useAuth } from './useAuth';
 
-vi.mock('../api/auth', () => ({
-  loginUser: vi.fn(),
-  registerUser: vi.fn(),
+// Firebase must be mocked before AuthProvider is imported to prevent
+// getAuth() from trying to validate a real API key in the test environment.
+vi.mock('../lib/firebase', () => ({
+  auth: {},
+  googleProvider: {},
 }));
 
-import { loginUser, registerUser } from '../api/auth';
+// vi.hoisted ensures these are initialized before vi.mock hoisting runs.
+const { mockOnAuthStateChanged, mockSignInWithPopup, mockSignOut } = vi.hoisted(() => ({
+  mockOnAuthStateChanged: vi.fn(),
+  mockSignInWithPopup: vi.fn(),
+  mockSignOut: vi.fn(),
+}));
 
-const mockLoginUser = vi.mocked(loginUser);
-const mockRegisterUser = vi.mocked(registerUser);
+vi.mock('firebase/auth', () => ({
+  onAuthStateChanged: mockOnAuthStateChanged,
+  signInWithPopup: mockSignInWithPopup,
+  signOut: mockSignOut,
+}));
+
+vi.mock('../api/auth', () => ({
+  syncFirebaseUser: vi.fn(),
+}));
+
+import { AuthProvider } from './AuthContext';
+import { useAuth } from './useAuth';
+import { syncFirebaseUser } from '../api/auth';
+
+const mockSyncFirebaseUser = vi.mocked(syncFirebaseUser);
 
 function wrapper({ children }: { children: ReactNode }) {
   return <AuthProvider>{children}</AuthProvider>;
 }
 
 beforeEach(() => {
-  localStorage.clear();
   vi.clearAllMocks();
+  // Default: fire onAuthStateChanged immediately with no user so loading resolves.
+  mockOnAuthStateChanged.mockImplementation((_auth: unknown, callback: (u: null) => void) => {
+    callback(null);
+    return vi.fn();
+  });
 });
 
 describe('AuthContext', () => {
-  it('initializes with null user when localStorage is empty', () => {
+  it('initializes with null user when no Firebase user is signed in', () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
-
     expect(result.current.user).toBeNull();
     expect(result.current.isAuthenticated).toBe(false);
   });
 
-  it('restores user from localStorage on mount', () => {
-    localStorage.setItem('car_tuning_token', 'tok123');
-    localStorage.setItem('car_tuning_username', 'alice');
+  it('sets user when Firebase reports a signed-in user', () => {
+    const fakeUser = { uid: 'uid123', email: 'alice@example.com', displayName: 'Alice' };
+    mockOnAuthStateChanged.mockImplementation((_auth: unknown, callback: (u: typeof fakeUser) => void) => {
+      callback(fakeUser);
+      return vi.fn();
+    });
 
     const { result } = renderHook(() => useAuth(), { wrapper });
-
-    expect(result.current.user?.username).toBe('alice');
-    expect(result.current.user?.token).toBe('tok123');
+    expect(result.current.user?.uid).toBe('uid123');
+    expect(result.current.user?.email).toBe('alice@example.com');
     expect(result.current.isAuthenticated).toBe(true);
   });
 
-  it('stores token and username in localStorage after login', async () => {
-    mockLoginUser.mockResolvedValueOnce({ access_token: 'jwt-abc', token_type: 'bearer' });
+  it('calls signInWithPopup and syncFirebaseUser on login', async () => {
+    const fakeIdToken = 'firebase-id-token';
+    const fakeUser = {
+      uid: 'uid123',
+      email: 'a@b.com',
+      displayName: 'A',
+      getIdToken: vi.fn().mockResolvedValue(fakeIdToken),
+    };
+    mockSignInWithPopup.mockResolvedValueOnce({ user: fakeUser });
+    mockSyncFirebaseUser.mockResolvedValueOnce({
+      id: 1, firebase_uid: 'uid123', email: 'a@b.com', display_name: 'A',
+    });
 
     const { result } = renderHook(() => useAuth(), { wrapper });
 
     await act(async () => {
-      await result.current.login({ username: 'bob', password: 'pass' });
+      await result.current.login();
     });
 
-    expect(localStorage.getItem('car_tuning_token')).toBe('jwt-abc');
-    expect(localStorage.getItem('car_tuning_username')).toBe('bob');
-    expect(result.current.isAuthenticated).toBe(true);
-    expect(result.current.user?.username).toBe('bob');
+    expect(mockSignInWithPopup).toHaveBeenCalledTimes(1);
+    expect(mockSyncFirebaseUser).toHaveBeenCalledWith(fakeIdToken);
   });
 
-  it('clears localStorage and nulls user on logout', async () => {
-    localStorage.setItem('car_tuning_token', 'tok123');
-    localStorage.setItem('car_tuning_username', 'alice');
-
-    const { result } = renderHook(() => useAuth(), { wrapper });
-
-    expect(result.current.isAuthenticated).toBe(true);
-
-    act(() => {
-      result.current.logout();
-    });
-
-    expect(result.current.user).toBeNull();
-    expect(result.current.isAuthenticated).toBe(false);
-    expect(localStorage.getItem('car_tuning_token')).toBeNull();
-    expect(localStorage.getItem('car_tuning_username')).toBeNull();
-  });
-
-  it('calls registerUser with the correct payload', async () => {
-    mockRegisterUser.mockResolvedValueOnce({ id: 1, username: 'carol', email: 'carol@example.com', created_at: '2026-01-01T00:00:00Z' });
-
+  it('calls signOut on logout', async () => {
+    mockSignOut.mockResolvedValueOnce(undefined);
     const { result } = renderHook(() => useAuth(), { wrapper });
 
     await act(async () => {
-      await result.current.register({ username: 'carol', email: 'carol@example.com', password: 'pass' });
+      await result.current.logout();
     });
 
-    expect(mockRegisterUser).toHaveBeenCalledWith({
-      username: 'carol',
-      email: 'carol@example.com',
-      password: 'pass',
-    });
+    expect(mockSignOut).toHaveBeenCalledTimes(1);
   });
 
   it('throws when useAuth is used outside of AuthProvider', () => {
