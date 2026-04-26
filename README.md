@@ -22,9 +22,8 @@ Edit `.env` at the repo root. See `.env.example` for all required variables and 
 
 Download and place the following files under `car-segmentation-ms/model/`:
 
-- `sam_vit_b_01ec64.pth` — SAM ViT-Base
-- `yolov11seg.pt` — YOLOv11 segmentation (car part detection)
-- `yolov10n.pt` — YOLOv10n (full car detection)
+- `sam_vit_h_4b8939.pth` — SAM ViT-H (~2.5 GB)
+- `yolo11n.pt` — YOLO11n car detection (~6 MB; auto-downloaded by Ultralytics on first run)
 
 ## One-Time Setup
 
@@ -80,6 +79,14 @@ Segmentation unit tests use lightweight test doubles for SAM/YOLO so they do not
 conda activate sam-microservice
 cd car-segmentation-ms
 pytest --tb=short -q
+```
+
+Segmentation integration tests run YOLO11n against the reference images in `car-segmentation-ms/input/`. They are skipped automatically when `yolo11n.pt` is absent (CI). To run them locally after placing the weights:
+
+```bash
+conda activate sam-microservice
+cd car-segmentation-ms
+pytest tests/test_input_images_detection.py -v
 ```
 
 ---
