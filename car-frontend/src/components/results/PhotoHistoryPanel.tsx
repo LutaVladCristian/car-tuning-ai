@@ -17,6 +17,7 @@ interface Props {
   total: number;
   isLoading: boolean;
   hasMore: boolean;
+  selectedPhotoId?: number | null;
   onLoadMore: () => void;
   onSelectPhoto: (id: number) => void;
 }
@@ -26,6 +27,7 @@ export default function PhotoHistoryPanel({
   total,
   isLoading,
   hasMore,
+  selectedPhotoId = null,
   onLoadMore,
   onSelectPhoto,
 }: Props) {
@@ -51,24 +53,31 @@ export default function PhotoHistoryPanel({
       )}
 
       <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
-        {photos.map((photo) => (
-          <button
-            key={photo.id}
-            type="button"
-            onClick={() => onSelectPhoto(photo.id)}
-            className="w-full text-left bg-surface-700 hover:bg-surface-600 border border-surface-600 hover:border-zinc-500 rounded-lg px-3 py-2.5 transition-colors"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-zinc-300 text-xs truncate flex-1">
-                {photo.original_filename}
-              </span>
-              <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${OP_COLORS[photo.operation_type] ?? 'bg-zinc-700 text-zinc-400'}`}>
-                {OP_LABELS[photo.operation_type] ?? photo.operation_type}
-              </span>
-            </div>
-            <p className="text-zinc-600 text-xs mt-0.5">{formatDate(photo.created_at)}</p>
-          </button>
-        ))}
+        {photos.map((photo) => {
+          const isSelected = photo.id === selectedPhotoId;
+          return (
+            <button
+              key={photo.id}
+              type="button"
+              onClick={() => onSelectPhoto(photo.id)}
+              className={`w-full text-left bg-surface-700 hover:bg-surface-600 border rounded-lg px-3 py-2.5 transition-colors ${
+                isSelected
+                  ? 'border-accent-blue/70 ring-1 ring-accent-blue/40'
+                  : 'border-surface-600 hover:border-zinc-500'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-zinc-300 text-xs truncate flex-1">
+                  {photo.original_filename}
+                </span>
+                <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${OP_COLORS[photo.operation_type] ?? 'bg-zinc-700 text-zinc-400'}`}>
+                  {OP_LABELS[photo.operation_type] ?? photo.operation_type}
+                </span>
+              </div>
+              <p className="text-zinc-600 text-xs mt-0.5">{formatDate(photo.created_at)}</p>
+            </button>
+          );
+        })}
       </div>
 
       {isLoading && (

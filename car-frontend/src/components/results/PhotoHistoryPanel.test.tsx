@@ -88,6 +88,15 @@ describe('PhotoHistoryPanel', () => {
     expect(onSelectPhoto).toHaveBeenCalledWith(99);
   });
 
+  it('highlights the selected history photo', () => {
+    const photos = [makePhoto({ id: 99, original_filename: 'selected.png' })];
+    render(<PhotoHistoryPanel {...defaultProps} photos={photos} total={1} selectedPhotoId={99} />);
+
+    expect(screen.getByRole('button', { name: /selected\.png/i }).className).toContain(
+      'border-accent-blue'
+    );
+  });
+
   it('shows "Loading..." when isLoading is true', () => {
     render(<PhotoHistoryPanel {...defaultProps} isLoading={true} />);
     expect(screen.getByText('Loading...')).toBeDefined();

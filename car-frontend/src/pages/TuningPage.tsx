@@ -18,12 +18,14 @@ export default function TuningPage() {
   const [imageSource, setImageSource] = useState<ImageSourceType>('upload');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [selectedHistoryPhotoId, setSelectedHistoryPhotoId] = useState<number | null>(null);
+  const [activeComparisonPhotoIdOverride, setActiveComparisonPhotoIdOverride] = useState<number | null>(null);
 
   const { photos, total, isLoading: historyLoading, hasMore, refetch, fetchMore } = usePhotoHistory();
   const { status, resultPhotoId, error, submit, reset } = useEditPhoto(refetch);
 
   const prompt = useMemo(() => buildPrompt(formState), [formState]);
   const isSubmitting = status === 'submitting' || status === 'polling';
+  const activeComparisonPhotoId = activeComparisonPhotoIdOverride ?? resultPhotoId;
   const canSubmit = !isSubmitting && (
     (imageSource === 'upload' && uploadedFile !== null) ||
     (imageSource === 'history' && selectedHistoryPhotoId !== null)
@@ -42,25 +44,33 @@ export default function TuningPage() {
       return;
     }
 
+    setActiveComparisonPhotoIdOverride(null);
     await submit(fileToSend, prompt, formState.target === 'car');
   };
 
   const handleHistorySelect = (id: number) => {
     setSelectedHistoryPhotoId(id);
+    setActiveComparisonPhotoIdOverride(id);
+    setImageSource('history');
+  };
+
+  const handleReset = () => {
+    reset();
+    setActiveComparisonPhotoIdOverride(null);
   };
 
   return (
     <div className="min-h-screen bg-surface-900">
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="max-w-7xl mx-auto px-3 py-4 sm:px-4 sm:py-6">
         <div className="mb-6">
-          <h2 className="text-xl font-bold text-zinc-100">Car Tuning Studio</h2>
+          <h2 className="text-xl font-bold text-zinc-100">SlickTunesAI Studio</h2>
           <p className="text-zinc-500 text-sm mt-1">
             Upload a car photo, configure modifications, and let AI generate the result.
           </p>
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(360px,460px)] gap-4 lg:gap-6">
             {/* Left column: controls */}
             <div className="space-y-6">
               {/* Image selection */}
@@ -125,8 +135,9 @@ export default function TuningPage() {
                 <ResultDisplay
                   status={status}
                   resultPhotoId={resultPhotoId}
+                  activePhotoId={activeComparisonPhotoId}
                   error={error}
-                  onReset={reset}
+                  onReset={handleReset}
                 />
               </div>
 
@@ -136,6 +147,7 @@ export default function TuningPage() {
                   total={total}
                   isLoading={historyLoading}
                   hasMore={hasMore}
+                  selectedPhotoId={activeComparisonPhotoId}
                   onLoadMore={fetchMore}
                   onSelectPhoto={handleHistorySelect}
                 />

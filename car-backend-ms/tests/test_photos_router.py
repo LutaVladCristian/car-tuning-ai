@@ -57,6 +57,32 @@ class TestListPhotos:
 
 
 class TestDownloadPhoto:
+    def test_returns_original_image_from_original_endpoint(self, client, auth_headers, user_and_token, make_photo):
+        user, _ = user_and_token
+        photo = make_photo(user)
+        with patch("app.routers.photos.storage_service.download_photo", return_value=b"original") as mock_dl:
+            resp = client.get(f"/photos/{photo.id}/original", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.content == b"original"
+        assert resp.headers["content-type"] == "image/png"
+        mock_dl.assert_called_once_with(photo.original_image_path)
+
+    def test_original_endpoint_nonexistent_photo_returns_404(self, client, auth_headers):
+        resp = client.get("/photos/99999/original", headers=auth_headers)
+        assert resp.status_code == 404
+
+    def test_original_endpoint_other_users_photo_returns_404(self, client, auth_headers, make_user, make_photo):
+        other = make_user(firebase_uid="bob-uid", email="bob@example.com")
+        photo = make_photo(other)
+        resp = client.get(f"/photos/{photo.id}/original", headers=auth_headers)
+        assert resp.status_code == 404
+
+    def test_original_endpoint_unauthenticated_returns_401(self, client, user_and_token, make_photo):
+        user, _ = user_and_token
+        photo = make_photo(user)
+        resp = client.get(f"/photos/{photo.id}/original")
+        assert resp.status_code == 401
+
     def test_returns_result_image_when_present(self, client, auth_headers, user_and_token, make_photo):
         user, _ = user_and_token
         photo = make_photo(user)

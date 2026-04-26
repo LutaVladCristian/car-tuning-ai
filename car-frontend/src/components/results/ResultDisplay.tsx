@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
-import { getPhotoUrl } from '../../api/photos';
+import { getOriginalPhotoUrl, getPhotoUrl } from '../../api/photos';
 import type { EditPhotoStatus } from '../../hooks/useEditPhoto';
+import ImageCompareSlider from './ImageCompareSlider';
 
 interface Props {
   status: EditPhotoStatus;
   resultPhotoId: number | null;
+  activePhotoId: number | null;
   error: string | null;
   onReset: () => void;
 }
@@ -15,43 +17,70 @@ function Spinner() {
   );
 }
 
-export default function ResultDisplay({ status, resultPhotoId, error, onReset }: Props) {
-  const [imgResult, setImgResult] = useState<{ photoId: number; url: string | null } | null>(null);
-  const imgUrl = imgResult?.photoId === resultPhotoId ? imgResult.url : null;
-  const imgLoading =
-    status === 'success' && resultPhotoId !== null && imgResult?.photoId !== resultPhotoId;
+export default function ResultDisplay({
+  status,
+  resultPhotoId,
+  activePhotoId,
+  error,
+  onReset,
+}: Props) {
+  const [imgResult, setImgResult] = useState<{
+    photoId: number;
+    originalUrl: string | null;
+    resultUrl: string | null;
+  } | null>(null);
+  const activeUrls = imgResult?.photoId === activePhotoId ? imgResult : null;
+  const imgLoading = activePhotoId !== null && imgResult?.photoId !== activePhotoId;
 
   useEffect(() => {
-    if (status !== 'success' || resultPhotoId === null) return;
+    if (activePhotoId === null) return;
 
+    const photoId = activePhotoId;
     let isActive = true;
-    let blobUrl: string | null = null;
+    let originalBlobUrl: string | null = null;
+    let resultBlobUrl: string | null = null;
 
-    getPhotoUrl(resultPhotoId)
-      .then((url) => {
+    async function loadImages() {
+      try {
+        const originalUrl = await getOriginalPhotoUrl(photoId);
+        originalBlobUrl = originalUrl;
+        const resultUrl = await getPhotoUrl(photoId);
+        resultBlobUrl = resultUrl;
+
         if (isActive) {
-          blobUrl = url;
-          setImgResult({ photoId: resultPhotoId, url });
+          setImgResult({ photoId, originalUrl, resultUrl });
         } else {
-          // H11: Discard immediately if the effect was already cleaned up.
-          URL.revokeObjectURL(url);
+          URL.revokeObjectURL(originalUrl);
+          URL.revokeObjectURL(resultUrl);
         }
-      })
-      .catch(() => {
-        if (isActive) setImgResult({ photoId: resultPhotoId, url: null });
-      });
+      } catch {
+        if (originalBlobUrl) {
+          URL.revokeObjectURL(originalBlobUrl);
+          originalBlobUrl = null;
+        }
+        if (resultBlobUrl) {
+          URL.revokeObjectURL(resultBlobUrl);
+          resultBlobUrl = null;
+        }
+        if (isActive) {
+          setImgResult({ photoId, originalUrl: null, resultUrl: null });
+        }
+      }
+    }
+
+    void loadImages();
 
     return () => {
       isActive = false;
-      // H11: Revoke the blob URL when resultPhotoId changes or component unmounts.
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      if (originalBlobUrl) URL.revokeObjectURL(originalBlobUrl);
+      if (resultBlobUrl) URL.revokeObjectURL(resultBlobUrl);
     };
-  }, [status, resultPhotoId]);
+  }, [activePhotoId]);
 
-  if (status === 'idle') {
+  if (status === 'idle' && activePhotoId === null) {
     return (
       <div className="flex flex-col items-center justify-center min-h-64 border-2 border-dashed border-surface-600 rounded-xl text-zinc-600">
-        <div className="text-4xl mb-3">🚗</div>
+        <div className="text-4xl mb-3">CAR</div>
         <p className="text-sm">Your result will appear here</p>
       </div>
     );
@@ -84,7 +113,7 @@ export default function ResultDisplay({ status, resultPhotoId, error, onReset }:
   if (status === 'error') {
     return (
       <div className="flex flex-col items-center justify-center min-h-64 bg-red-500/5 border border-red-500/20 rounded-xl gap-4 px-6 text-center">
-        <div className="text-3xl">⚠️</div>
+        <div className="text-3xl">!</div>
         <div>
           <p className="text-red-400 text-sm font-medium">Something went wrong</p>
           <p className="text-zinc-500 text-xs mt-1">{error}</p>
@@ -100,11 +129,12 @@ export default function ResultDisplay({ status, resultPhotoId, error, onReset }:
     );
   }
 
-  // success
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Result</span>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+          Compare
+        </span>
         <button
           type="button"
           onClick={onReset}
@@ -120,14 +150,15 @@ export default function ResultDisplay({ status, resultPhotoId, error, onReset }:
         </div>
       )}
 
-      {!imgLoading && imgUrl && (
+      {!imgLoading && activeUrls?.originalUrl && activeUrls.resultUrl && (
         <div className="space-y-3">
-          <div className="rounded-xl overflow-hidden border border-surface-600">
-            <img src={imgUrl} alt="Edited car" className="w-full object-contain" />
-          </div>
+          <ImageCompareSlider
+            originalUrl={activeUrls.originalUrl}
+            resultUrl={activeUrls.resultUrl}
+          />
           <a
-            href={imgUrl}
-            download="tuned-car.png"
+            href={activeUrls.resultUrl}
+            download="slick-tunes-result.png"
             className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-accent-blue/10 border border-accent-blue/30 text-accent-blue text-sm font-medium hover:bg-accent-blue/20 transition-colors"
           >
             Save image to device
@@ -135,9 +166,15 @@ export default function ResultDisplay({ status, resultPhotoId, error, onReset }:
         </div>
       )}
 
-      {!imgLoading && !imgUrl && !resultPhotoId && (
+      {!imgLoading && activePhotoId === null && resultPhotoId === null && (
         <div className="bg-green-500/10 border border-green-500/20 rounded-lg px-4 py-3 text-xs text-green-300">
           Edit submitted successfully. Check your photo history for the saved record.
+        </div>
+      )}
+
+      {!imgLoading && activePhotoId !== null && (!activeUrls?.originalUrl || !activeUrls.resultUrl) && (
+        <div className="bg-red-500/5 border border-red-500/20 rounded-lg px-4 py-3 text-xs text-red-400">
+          Could not load the comparison images. Try selecting another photo.
         </div>
       )}
     </div>
