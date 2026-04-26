@@ -31,7 +31,7 @@ SAM_MODEL_TYPE = "vit_h"
 YOLO_DETECTION_MODEL_PATH = str(_HERE / "model" / "yolo11n.pt")
 _MAX_IMAGE_DIMENSION = 4096
 _MAX_IMAGE_PIXELS = _MAX_IMAGE_DIMENSION * _MAX_IMAGE_DIMENSION
-_YOLO_IMGSZ = 640  # YOLO11n native training resolution
+_YOLO_IMGSZ = 640  # YOLO10n native training resolution
 
 # Initialize models
 sam_predictor = initialize_sam_model(SAM_CHECKPOINT_PATH, SAM_MODEL_TYPE, DEVICE)
@@ -108,7 +108,8 @@ def segment_car(content, inverse=True, size=None, output_dir=None):
     if len(boxes_yolo) == 0:
         raise ValueError("No cars detected in image.")
 
-    sam_predictor.set_image(img)
+    # SAM requires RGB; img is BGR from _decode_image_for_cv.
+    sam_predictor.set_image(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
 
     transformed_boxes = sam_predictor.transform.apply_boxes_torch(
         boxes_yolo.clone().detach().to(sam_predictor.device),
