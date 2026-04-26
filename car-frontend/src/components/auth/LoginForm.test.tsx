@@ -28,6 +28,13 @@ beforeEach(() => {
 });
 
 describe('LoginForm', () => {
+  it('renders the SlickTunesAI brand', () => {
+    renderForm();
+    expect(screen.getByText('Slick')).toBeDefined();
+    expect(screen.getByText('Tunes')).toBeDefined();
+    expect(screen.getByText('AI')).toBeDefined();
+  });
+
   it('renders the Google Sign-In button', () => {
     renderForm();
     expect(screen.getByRole('button', { name: /sign in with google/i })).toBeDefined();

@@ -13,6 +13,11 @@ export async function getPhotoUrl(id: number): Promise<string> {
   return URL.createObjectURL(res.data as Blob);
 }
 
+export async function getOriginalPhotoUrl(id: number): Promise<string> {
+  const res = await apiClient.get(`/photos/${id}/original`, { responseType: 'blob' });
+  return URL.createObjectURL(res.data as Blob);
+}
+
 export async function getPhotoBlob(id: number): Promise<Blob> {
   const res = await apiClient.get(`/photos/${id}`, { responseType: 'blob' });
   return res.data as Blob;

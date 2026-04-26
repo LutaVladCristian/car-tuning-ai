@@ -49,8 +49,8 @@ export default function LoginForm() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold tracking-tight mb-1">
-            <span className="text-accent-blue">Car</span>
-            <span className="text-accent-orange">Tune</span>
+            <span className="text-accent-blue">Slick</span>
+            <span className="text-accent-orange">Tunes</span>
             <span className="text-zinc-100">AI</span>
           </h1>
           <p className="text-zinc-400 text-sm">Sign in to get started</p>

@@ -13,6 +13,17 @@ from dependencies import get_current_user, get_db
 router = APIRouter(prefix="/photos", tags=["photos"])
 
 
+def _get_owned_photo(photo_id: int, current_user: User, db: Session) -> Photo:
+    photo = (
+        db.query(Photo)
+        .filter(Photo.id == photo_id, Photo.user_id == current_user.id)
+        .first()
+    )
+    if photo is None:
+        raise HTTPException(status_code=404, detail="Photo not found")
+    return photo
+
+
 @router.get("", response_model=PhotoListResponse)
 async def list_photos(
     current_user: User = Depends(get_current_user),
@@ -29,20 +40,24 @@ async def list_photos(
     )
 
 
+@router.get("/{photo_id}/original")
+async def download_original_photo(
+    photo_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    photo = _get_owned_photo(photo_id, current_user, db)
+    data = storage_service.download_photo(photo.original_image_path)
+    return StreamingResponse(BytesIO(data), media_type="image/png")
+
+
 @router.get("/{photo_id}")
 async def download_photo(
     photo_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> StreamingResponse:
-    photo = (
-        db.query(Photo)
-        .filter(Photo.id == photo_id, Photo.user_id == current_user.id)
-        .first()
-    )
-    if photo is None:
-        raise HTTPException(status_code=404, detail="Photo not found")
-
+    photo = _get_owned_photo(photo_id, current_user, db)
     path = photo.result_image_path or photo.original_image_path
     data = storage_service.download_photo(path)
     return StreamingResponse(BytesIO(data), media_type="image/png")
