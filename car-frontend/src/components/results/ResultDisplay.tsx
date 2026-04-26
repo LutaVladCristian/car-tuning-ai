@@ -105,13 +105,24 @@ export default function ResultDisplay({ status, resultPhotoId, error, onReset }:
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Result</span>
-        <button
-          type="button"
-          onClick={onReset}
-          className="text-xs text-zinc-500 hover:text-zinc-300 border border-surface-600 px-3 py-1 rounded-md transition-colors"
-        >
-          New edit
-        </button>
+        <div className="flex items-center gap-2">
+          {imgUrl && (
+            <a
+              href={imgUrl}
+              download="tuned-car.png"
+              className="text-xs text-zinc-500 hover:text-zinc-300 border border-surface-600 px-3 py-1 rounded-md transition-colors"
+            >
+              Download
+            </a>
+          )}
+          <button
+            type="button"
+            onClick={onReset}
+            className="text-xs text-zinc-500 hover:text-zinc-300 border border-surface-600 px-3 py-1 rounded-md transition-colors"
+          >
+            New edit
+          </button>
+        </div>
       </div>
 
       {imgLoading && (
