@@ -37,8 +37,9 @@ An AI-powered car image manipulation platform. Users upload car photos, choose w
 **Request flow:**
 1. Browser authenticates with Firebase and sends image + form data to `car-backend-ms`.
 2. Backend verifies the Firebase ID token, validates the upload, and proxies the request to `car-segmentation-ms`.
-3. Segmentation service detects the closest car with YOLOv10n, refines its mask with SAM, calls OpenAI for `/edit-photo`, and returns a PNG.
-4. Backend stores the original and result images in Firebase Storage, stores paths/metadata in PostgreSQL, and returns the result PNG to the browser.
+3. Segmentation service detects the closest car with YOLOv10n, refines its mask with SAM, calls OpenAI for `/edit-photo`, and returns base64 result/mask PNGs.
+4. Backend stores the original, result, and mask images in Firebase Storage, stores paths/metadata in PostgreSQL, and returns the result PNG to the browser.
+5. Frontend displays the saved original/result pair in an interactive comparison slider; history selections load their pair into the same slider.
 
 ## Service Docs
 

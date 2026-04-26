@@ -37,9 +37,9 @@ Note: the local `yolo11n.pt` file in older setups is a car-parts model, not the 
 | Method | Path | Input | Output |
 |---|---|---|---|
 | GET | `/health` | none | `{"status":"ok"}` once models are ready; HTTP 503 while loading |
-| POST | `/edit-photo` | `file` image, `prompt` string, `edit_car` bool, `size` string | PNG AI-edited result; HTTP 503 if models are still loading |
+| POST | `/edit-photo` | `file` image, `prompt` string, `edit_car` bool, `size` string | JSON with `result_b64` and `mask_b64`; HTTP 503 if models are still loading |
 
-`/edit-photo` writes `image.png` and `mask.png` to a per-request temp dir under `output/request-<uuid>/`, calls `gpt-image-1` through the OpenAI Images API, then removes the temp dir in a `finally` block.
+`/edit-photo` writes `image.png` and `mask.png` to a per-request temp dir under `output/request-<uuid>/`, calls `gpt-image-1` through the OpenAI Images API with `quality="high"` and `input_fidelity="high"`, then removes the temp dir in a `finally` block.
 
 ## ML Pipeline
 
@@ -65,7 +65,7 @@ SAM ViT-H mask for that one selected box (multimask_output=False)
 apply_binary_mask_for_inpainting()
     |
     v
-OpenAI gpt-image-1 edit -> PNG result
+OpenAI gpt-image-1 edit -> base64 PNG result + base64 mask
 ```
 
 **Car selection:** `_select_closest_car_box()` approximates the closest visible car from a 2D photo by combining bounding-box area with the box's lower position in the frame. SAM runs only on the selected box, so exactly one car mask is sent to OpenAI.
@@ -78,7 +78,7 @@ OpenAI gpt-image-1 edit -> PNG result
 2. Save `<tmp_dir>/image.png`.
 3. Convert/resize/threshold the SAM mask so it matches `image.png`.
 4. If `edit_car=True`, make car pixels transparent and background opaque.
-5. If `edit_car=False`, make background pixels transparent and car pixels opaque.
+5. If `edit_car=False`, slightly expand the protected car foreground, then make background pixels transparent and car pixels opaque. This protects car edges, wheels, mirrors, and trim during background edits.
 6. Save `<tmp_dir>/mask.png`; alpha `0` means OpenAI may edit that pixel, alpha `255` means protected.
 
 For `size="auto"`, `server.py` sends `size="auto"` to OpenAI and resizes the returned image back to the original source dimensions if needed.

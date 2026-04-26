@@ -1,6 +1,6 @@
 # car-frontend
 
-React 19 + TypeScript SPA. Communicates with `car-backend-ms` through Axios and authenticates users with Firebase Google Sign-In.
+React 19 + TypeScript SPA. Communicates with `car-backend-ms` through Axios and authenticates users with Firebase Google Sign-In. The visible app brand and browser tab title are `SlickTunesAI` / `slick-tunes`; the package directory remains `car-frontend`.
 
 **Port:** 5173 in development
 **Bundler:** Vite 8
@@ -23,7 +23,7 @@ car-frontend/src/
 |-- api/
 |   |-- client.ts                   # Axios instance; Firebase ID token interceptor; 401 -> /login
 |   |-- auth.ts                     # syncFirebaseUser(idToken) -> POST /auth/firebase
-|   |-- photos.ts                   # listPhotos(), getPhotoBlob()
+|   |-- photos.ts                   # listPhotos(), getPhotoUrl(), getOriginalPhotoUrl(), getPhotoBlob()
 |   `-- segmentation.ts             # editPhoto()
 |-- context/
 |   |-- AuthContext.tsx             # AuthProvider; Firebase onAuthStateChanged, Google Sign-In
@@ -68,7 +68,8 @@ car-frontend/src/
     |-- prompt/
     |   `-- PromptPreview.tsx
     `-- results/
-        |-- ResultDisplay.tsx       # Shows result image; Download + New edit actions
+        |-- ImageCompareSlider.tsx  # Original/result overlay slider
+        |-- ResultDisplay.tsx       # Compare slider, save/download, New edit action
         `-- PhotoHistoryPanel.tsx
 ```
 
@@ -97,12 +98,16 @@ car-frontend/src/
 
 The Axios client requests `auth.currentUser?.getIdToken()` and sets `Authorization: Bearer <token>` on every request. On HTTP 401, it redirects to `/login`.
 
-### Edit Photo Flow
+### Edit Photo And Comparison Flow
 
 1. Snapshot `GET /photos` total count.
 2. `POST /edit-photo` and wait for the backend response; this can block while OpenAI processes the image.
 3. Poll `GET /photos?limit=1` every 500 ms for up to 10 retries until `total` increases.
-4. Fetch the new image with `GET /photos/{id}` and display it.
+4. Set the new photo ID as the active comparison item.
+5. Fetch the original with `GET /photos/{id}/original` and the generated result with `GET /photos/{id}`.
+6. Display both images in `ImageCompareSlider`, with the original on the left and generated result on the right.
+
+History rows call back into `TuningPage`; selecting a row makes that photo ID the active comparison item and highlights the row. The save button downloads the currently active right-side generated/result image, including when the active image came from history.
 
 ### Auth - `src/context/AuthContext.tsx`
 

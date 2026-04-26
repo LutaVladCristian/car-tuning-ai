@@ -30,7 +30,7 @@ car-backend-ms/
     |       `-- photo.py       # Photo ORM + OperationType enum
     |-- routers/
     |   |-- auth.py            # POST /auth/firebase
-    |   |-- photos.py          # GET /photos, GET /photos/{id}
+    |   |-- photos.py          # GET /photos, GET /photos/{id}, GET /photos/{id}/original
     |   `-- segmentation.py    # POST /edit-photo
     |-- schemas/               # Pydantic response models
     `-- services/
@@ -46,6 +46,7 @@ car-backend-ms/
 | POST | `/auth/firebase` | None | Exchange Firebase ID token for a synced backend user record |
 | GET | `/photos` | Bearer | List current user's photo metadata with pagination (`skip`, `limit`) |
 | GET | `/photos/{photo_id}` | Bearer | Stream the result PNG if present, otherwise the original image |
+| GET | `/photos/{photo_id}/original` | Bearer | Stream the original uploaded PNG for comparison views |
 | POST | `/edit-photo` | Bearer | Validate upload, proxy to segmentation MS, store images and metadata |
 
 ## Auth Flow
@@ -62,11 +63,11 @@ car-backend-ms/
 2. Allows JPEG, PNG, and WEBP based on magic bytes.
 3. Validates `prompt` and `size`; allowed sizes are `auto`, `1024x1024`, `1024x1536`, and `1536x1024`.
 4. Calls `proxy_service.forward_edit_photo()` with a 180 second timeout.
-5. Uploads original and result bytes to Firebase Storage.
+5. Uploads original, result, and mask bytes to Firebase Storage.
 6. Stores a `Photo` row with storage paths and operation metadata.
 7. Streams the result PNG back to the browser.
 
-Outside GCP, `_identity_token()` silently returns `None`, so local backend-to-segmentation calls omit the `Authorization` header. In Cloud Run, the backend gets a metadata-server identity token for the segmentation service audience.
+Outside GCP, `_identity_token()` returns `None`, so local backend-to-segmentation calls omit the `Authorization` header unless `REQUIRE_SEGMENTATION_IAM=true`. In Cloud Run, the backend gets a metadata-server identity token for the segmentation service audience and production deploys fail closed if that token cannot be fetched.
 
 ## Database Schema
 
@@ -89,11 +90,12 @@ Outside GCP, `_identity_token()` silently returns `None`, so local backend-to-se
 | `original_filename` | varchar(255) | not null |
 | `original_image_path` | string | Firebase Storage path, not null |
 | `result_image_path` | string | Firebase Storage path, nullable |
+| `mask_image_path` | string | Firebase Storage path, nullable |
 | `operation_type` | enum | currently `edit_photo` |
 | `operation_params` | JSON | `prompt`, `edit_car`, `size` |
 | `created_at` | timestamp | default now() |
 
-Current migration files include the initial schema and the blob-to-storage-path migration. Keep new migrations in `car-backend-ms/alembic/versions/`.
+Current migration files include the initial schema, Firebase auth update, blob-to-storage-path migration, and `mask_image_path`. Keep new migrations in `car-backend-ms/alembic/versions/`.
 
 ## Storage
 
@@ -103,7 +105,7 @@ Image bytes are stored in Firebase Storage, not PostgreSQL. Paths follow:
 users/{firebase_uid}/photos/{uuid}/{role}.png
 ```
 
-`role` is `original` or `result`.
+`role` is `original`, `result`, or `mask`. Unsupported role names are rejected before upload, and blob metadata includes the Firebase UID and role.
 
 ## Proxy Timeout
 
