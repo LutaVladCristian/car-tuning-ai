@@ -1,47 +1,25 @@
 interface Props {
   prompt: string;
-  isOverridden: boolean;
-  onChange: (value: string) => void;
-  onReset: () => void;
 }
 
-export default function PromptPreview({ prompt, isOverridden, onChange, onReset }: Props) {
+export default function PromptPreview({ prompt }: Props) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
           AI Prompt
         </span>
-        <div className="flex items-center gap-2">
-          {isOverridden && (
-            <span className="text-xs bg-accent-orange/20 text-accent-orange px-2 py-0.5 rounded-full">
-              Custom
-            </span>
-          )}
-          {isOverridden && (
-            <button
-              type="button"
-              onClick={onReset}
-              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-            >
-              Reset to auto
-            </button>
-          )}
-        </div>
       </div>
-      {/* M13: Cap at 1000 chars to match the backend limit and show remaining count. */}
       <textarea
         value={prompt}
-        onChange={(e) => onChange(e.target.value)}
+        readOnly
         rows={4}
         maxLength={1000}
-        className="w-full bg-surface-700 border border-surface-600 rounded-lg px-4 py-3 text-zinc-300 font-mono text-xs resize-y focus:outline-none focus:border-accent-blue transition-colors leading-relaxed"
+        className="w-full bg-surface-700 border border-surface-600 rounded-lg px-4 py-3 text-zinc-300 font-mono text-xs resize-y focus:outline-none focus:border-surface-600 leading-relaxed cursor-default"
         placeholder="Select options above to generate a prompt..."
       />
       <div className="flex justify-between">
-        <p className="text-zinc-600 text-xs">
-          Edit freely — or reset to let selections rebuild it automatically.
-        </p>
+        <p className="text-zinc-600 text-xs">Generated from your selected options.</p>
         <p className={`text-xs ${prompt.length >= 950 ? 'text-accent-orange' : 'text-zinc-600'}`}>
           {prompt.length}/1000
         </p>

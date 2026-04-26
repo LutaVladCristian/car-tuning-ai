@@ -8,7 +8,7 @@
 | `car-segmentation-ms` | Cloud Run (port 8080) | Downloads models from GCS at startup; IAM-protected (`--no-allow-unauthenticated`) |
 | `car-frontend` | Firebase Hosting | SPA with `/index.html` rewrite rule; project `slick-tunes` -> `https://slick-tunes.web.app` |
 | PostgreSQL | Cloud SQL | `car-tuning-db` in `europe-west1`; connected via Unix socket sidecar |
-| Photos | Firebase Storage | `users/{uid}/photos/{uuid}/{role}.png`; bucket `slick-tunes.firebasestorage.app` |
+| Photos | Firebase Storage | `users/{uid}/photos/{uuid}/{role}.png` for `original`, `result`, and `mask`; bucket `slick-tunes.firebasestorage.app` |
 | Model weights | GCS bucket `car-tuning-ai-vision-models` | SAM ViT-H (~2.56 GB) + YOLOv10n COCO detector (~6 MB) |
 | Secrets | Secret Manager | `OPENAI_API_KEY` -> `car-backend-openai-key`, `DATABASE_URL` -> `car-backend-db-url` |
 
@@ -60,7 +60,8 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     match /users/{userId}/photos/{allPaths=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
     }
   }
 }
@@ -80,7 +81,7 @@ Add to root `.env`:
 FIREBASE_STORAGE_EMULATOR_HOST=127.0.0.1:9199
 ```
 
-Photo storage path: `users/{firebase_uid}/photos/{uuid}/{role}.png`, where `role` is `original` or `result`.
+Photo storage path: `users/{firebase_uid}/photos/{uuid}/{role}.png`, where `role` is `original`, `result`, or `mask`. The backend writes these objects with service-account credentials; client-side Firebase Storage writes are denied by rules.
 
 ---
 
@@ -134,6 +135,8 @@ Cloud Run services calling each other via `*.run.app` URLs go through Google's p
 token = await _identity_token(audience=settings.SEGMENTATION_MS_URL)
 # token is None outside GCP, so local dev sends no Authorization header
 ```
+
+Production backend deployments set `REQUIRE_SEGMENTATION_IAM=true`, so Cloud Run calls fail closed if the identity token cannot be fetched.
 
 ### One-time IAM grant
 
@@ -194,7 +197,7 @@ gcloud run deploy car-backend-ms \
   --service-account backend-ms-sa@car-tuning-ai-494319.iam.gserviceaccount.com \
   --add-cloudsql-instances car-tuning-ai-494319:europe-west1:car-tuning-db \
   --update-secrets DATABASE_URL=car-backend-db-url:latest \
-  --set-env-vars "FIREBASE_PROJECT_ID=slick-tunes,FIREBASE_STORAGE_BUCKET=slick-tunes.firebasestorage.app,SEGMENTATION_MS_URL=https://car-segmentation-ms-130079365217.europe-west1.run.app,CORS_ORIGINS=[\"https://slick-tunes.web.app\"]" \
+  --set-env-vars "FIREBASE_PROJECT_ID=slick-tunes,FIREBASE_STORAGE_BUCKET=slick-tunes.firebasestorage.app,SEGMENTATION_MS_URL=https://car-segmentation-ms-130079365217.europe-west1.run.app,CORS_ORIGINS=[\"https://slick-tunes.web.app\"],REQUIRE_SEGMENTATION_IAM=true" \
   --allow-unauthenticated
 ```
 
@@ -237,7 +240,9 @@ VITE_API_BASE_URL=https://car-backend-ms-130079365217.europe-west1.run.app npm r
 firebase deploy --only hosting --project slick-tunes
 ```
 
-`.firebaserc` is committed with project ID `slick-tunes`. Live URL: `https://slick-tunes.web.app`.
+`.firebaserc` is committed with project ID `slick-tunes`. Live URL: `https://slick-tunes.web.app`. The frontend browser tab title comes from `car-frontend/index.html` and is `slick-tunes`.
+
+Firebase Hosting security headers are configured in `car-frontend/firebase.json`; the Nginx headers only apply to Docker/Nginx deployments.
 
 ---
 
@@ -250,6 +255,7 @@ firebase deploy --only hosting --project slick-tunes
 | `FIREBASE_STORAGE_BUCKET` | backend-ms | No, value: `slick-tunes.firebasestorage.app` |
 | `SEGMENTATION_MS_URL` | backend-ms | No, value: `https://car-segmentation-ms-130079365217.europe-west1.run.app` |
 | `CORS_ORIGINS` | backend-ms | No, value: `["https://slick-tunes.web.app"]` |
+| `REQUIRE_SEGMENTATION_IAM` | backend-ms | No, production value: `true` |
 | `OPENAI_API_KEY` | segmentation-ms | Yes, `car-backend-openai-key` |
 | `MODEL_BUCKET` | segmentation-ms | No, value: `car-tuning-ai-vision-models` |
 | `VITE_API_BASE_URL` | frontend build | GitHub secret |
@@ -296,4 +302,4 @@ conda run -n sam-microservice python -m pytest tests/ --tb=short -q
 cd car-frontend && npm test
 ```
 
-Local identity token behavior: `proxy_service.py` fetches an identity token from the GCP metadata server. Outside GCP the fetch fails silently and no `Authorization` header is sent, so local segmentation without IAM keeps working.
+Local identity token behavior: `proxy_service.py` fetches an identity token from the GCP metadata server. Outside GCP the fetch returns `None` and no `Authorization` header is sent, so local segmentation without IAM keeps working while `REQUIRE_SEGMENTATION_IAM=false`.

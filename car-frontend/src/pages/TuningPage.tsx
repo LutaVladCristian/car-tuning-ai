@@ -99,9 +99,6 @@ export default function TuningPage() {
               <div className="bg-surface-800 border border-surface-600 rounded-xl p-5">
                 <PromptPreview
                   prompt={prompt}
-                  isOverridden={formState.customPromptOverride !== null}
-                  onChange={(v) => dispatch({ type: 'SET_CUSTOM_PROMPT', value: v })}
-                  onReset={() => dispatch({ type: 'RESET_PROMPT_OVERRIDE' })}
                 />
               </div>
 
