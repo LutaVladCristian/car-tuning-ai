@@ -25,6 +25,7 @@ class Photo(Base):
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     original_image_path: Mapped[str] = mapped_column(String, nullable=False)
     result_image_path: Mapped[str | None] = mapped_column(String, nullable=True)
+    mask_image_path: Mapped[str | None] = mapped_column(String, nullable=True)
     operation_type: Mapped[OperationType] = mapped_column(
         Enum(OperationType), nullable=False
     )

@@ -74,7 +74,7 @@ async def edit_photo(
     prompt, size = _validate_edit_params(prompt, size)
 
     try:
-        result_bytes = await proxy_service.forward_edit_photo(
+        result_bytes, mask_bytes = await proxy_service.forward_edit_photo(
             content, file.filename or "image.jpg", prompt, edit_car, size
         )
     except httpx.HTTPStatusError as exc:
@@ -86,12 +86,14 @@ async def edit_photo(
     uid = current_user.firebase_uid
     original_path = storage_service.upload_photo(uid, "original", content)
     result_path = storage_service.upload_photo(uid, "result", result_bytes)
+    mask_path = storage_service.upload_photo(uid, "mask", mask_bytes)
 
     photo = Photo(
         user_id=current_user.id,
         original_filename=file.filename or "image.jpg",
         original_image_path=original_path,
         result_image_path=result_path,
+        mask_image_path=mask_path,
         operation_type=OperationType.edit_photo,
         operation_params={"prompt": prompt, "edit_car": edit_car, "size": size},
     )

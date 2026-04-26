@@ -12,59 +12,50 @@ def initialize_sam_model(checkpoint_path, model_type, device):
     sam_model = sam_model_registry[model_type](checkpoint=checkpoint_path).to(device)
     return SamPredictor(sam_model)
 
+
 def initialize_yolo_model(model_path, device):
     """Initialize a YOLO model."""
     model = YOLO(model_path)
     model.to(device)
     return model
 
-def apply_binary_mask_for_inpainting(image, mask, output_dir, inverse=False, size=None):
+
+def apply_binary_mask_for_inpainting(image, mask, output_dir, edit_car=False, size=None):
     """
-    Processes an image and its mask to produce a valid inpainting mask with an alpha channel:
-    - Car area is black (0)
-    - Background is white (255)
-    - An alpha channel is derived from binary mask
-    Saves each step into the specified output directory.
+    Save image.png and an OpenAI-compatible mask.png.
+
+    The input mask uses white pixels for the SAM car foreground. OpenAI image
+    edits use alpha=0 for editable pixels and alpha=255 for protected pixels.
     """
 
     os.makedirs(output_dir, exist_ok=True)
 
     if size and size != "auto":
-        # M1: validate format and cap dimensions before resizing.
         parts = size.split("x")
         if len(parts) != 2:
             raise ValueError(f"Invalid size format {size!r}. Expected WxH (e.g. '1024x1536').")
         w, h = int(parts[0]), int(parts[1])
-        _MAX_DIM = 4096
-        if not (1 <= w <= _MAX_DIM and 1 <= h <= _MAX_DIM):
-            raise ValueError(f"Dimensions {w}x{h} out of range. Each must be 1–{_MAX_DIM}.")
+        max_dim = 4096
+        if not (1 <= w <= max_dim and 1 <= h <= max_dim):
+            raise ValueError(f"Dimensions {w}x{h} out of range. Each must be 1-{max_dim}.")
         image = cv2.resize(image, (w, h))
 
-    # Save the original image
     cv2.imwrite(os.path.join(output_dir, "image.png"), image)
 
-    # Ensure the mask is grayscale
     if mask.ndim == 3:
         mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
 
-    # Resize mask to match the image size
     mask = cv2.resize(mask, (image.shape[1], image.shape[0]), interpolation=cv2.INTER_NEAREST)
-
-    # Threshold mask to binary
     _, binary_mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
 
-    # Invert mask if needed
-    inpaint_mask = cv2.bitwise_not(binary_mask) if inverse else binary_mask
+    car_pixels = binary_mask == 255
+    editable_pixels = car_pixels if edit_car else ~car_pixels
+    alpha = np.where(editable_pixels, 0, 255).astype(np.uint8)
 
-    # Optional blurred version
-    blurred_mask = cv2.GaussianBlur(inpaint_mask, (5, 5), 10)
+    pil_alpha = Image.fromarray(alpha, mode="L")
+    pil_rgba = Image.new("RGBA", pil_alpha.size, (0, 0, 0, 255))
+    pil_rgba.putalpha(pil_alpha)
 
-    # Create an alpha-enabled mask image using PIL
-    pil_mask = Image.fromarray(blurred_mask).convert("L")
-    pil_rgba = pil_mask.convert("RGBA")
-    pil_rgba.putalpha(pil_mask)  # Add grayscale as alpha
-
-    # Save RGBA mask
     mask_with_alpha_path = os.path.join(output_dir, "mask.png")
     pil_rgba.save(mask_with_alpha_path)
 

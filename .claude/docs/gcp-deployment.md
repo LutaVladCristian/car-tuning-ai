@@ -6,17 +6,18 @@
 |---|---|---|
 | `car-backend-ms` | Cloud Run (port 8080) | Runs `alembic upgrade head` on every cold start |
 | `car-segmentation-ms` | Cloud Run (port 8080) | Downloads models from GCS at startup; IAM-protected (`--no-allow-unauthenticated`) |
-| `car-frontend` | Firebase Hosting | SPA with `/index.html` rewrite rule; project `slick-tunes` → `https://slick-tunes.web.app` |
+| `car-frontend` | Firebase Hosting | SPA with `/index.html` rewrite rule; project `slick-tunes` -> `https://slick-tunes.web.app` |
 | PostgreSQL | Cloud SQL | `car-tuning-db` in `europe-west1`; connected via Unix socket sidecar |
-| Photos (images) | Firebase Storage | `users/{uid}/photos/{uuid}/{role}.png`; bucket `slick-tunes.firebasestorage.app` |
-| Model weights | GCS bucket `car-tuning-ai-vision-models` | SAM ViT-H (~2.56 GB) + YOLOv11n (~18 MB) |
-| Secrets | Secret Manager | `OPENAI_API_KEY` → `car-backend-openai-key`, `DATABASE_URL` → `car-backend-db-url` |
+| Photos | Firebase Storage | `users/{uid}/photos/{uuid}/{role}.png`; bucket `slick-tunes.firebasestorage.app` |
+| Model weights | GCS bucket `car-tuning-ai-vision-models` | SAM ViT-H (~2.56 GB) + YOLOv10n COCO detector (~6 MB) |
+| Secrets | Secret Manager | `OPENAI_API_KEY` -> `car-backend-openai-key`, `DATABASE_URL` -> `car-backend-db-url` |
 
 ---
 
-## 1. GCP Bucket — Model Weights
+## 1. GCS Bucket - Model Weights
 
 ### Create bucket
+
 ```bash
 gcloud storage buckets create gs://car-tuning-ai-vision-models \
   --location=europe-west1 \
@@ -24,13 +25,15 @@ gcloud storage buckets create gs://car-tuning-ai-vision-models \
 ```
 
 ### Upload weights
+
 ```bash
 cd car-segmentation-ms/model/
 gcloud storage cp sam_vit_h_4b8939.pth gs://car-tuning-ai-vision-models/
-gcloud storage cp yolov11n.pt           gs://car-tuning-ai-vision-models/
+gcloud storage cp yolov10n.pt           gs://car-tuning-ai-vision-models/
 ```
 
-### IAM — segmentation service account
+### IAM - segmentation service account
+
 ```bash
 gcloud iam service-accounts create segmentation-ms-sa \
   --display-name="car-segmentation-ms Cloud Run SA"
@@ -40,17 +43,19 @@ gcloud storage buckets add-iam-policy-binding gs://car-tuning-ai-vision-models \
   --role="roles/storage.objectViewer"
 ```
 
-How it works: `download_models.py` is called inside `_load_models()` in `server.py` in a background thread. Reads `MODEL_BUCKET` env var; if unset, skips (local dev uses `./model/` files directly).
+How it works: `download_models.py` is called inside `_load_models()` in `server.py` in a background thread. It reads `MODEL_BUCKET` and downloads missing model files into `car-segmentation-ms/model/`.
 
 ---
 
-## 2. Firebase Storage — Photo Images
+## 2. Firebase Storage - Photo Images
 
 ### Enable in Firebase console
-Firebase console → Storage → Get started → bucket name is `slick-tunes.firebasestorage.app`.
+
+Firebase console -> Storage -> Get started -> bucket name is `slick-tunes.firebasestorage.app`.
 
 ### Security rules
-```
+
+```text
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
@@ -62,32 +67,37 @@ service firebase.storage {
 ```
 
 ### Local dev with emulator
+
 ```bash
 cd car-frontend
 firebase emulators:start --only storage
-# Emulator UI: http://localhost:4000  |  Storage: localhost:9199
+# Emulator UI: http://localhost:4000 | Storage: localhost:9199
 ```
+
 Add to root `.env`:
+
 ```dotenv
 FIREBASE_STORAGE_EMULATOR_HOST=127.0.0.1:9199
 ```
 
-Photo storage path: `users/{firebase_uid}/photos/{uuid}/{role}.png` where role is `original` or `result`.
+Photo storage path: `users/{firebase_uid}/photos/{uuid}/{role}.png`, where `role` is `original` or `result`.
 
 ---
 
 ## 3. Secret Manager
 
 ### Create secrets
+
 ```bash
 echo -n "sk-..." | gcloud secrets create car-backend-openai-key --data-file=-
 echo -n "postgresql+psycopg2://car-user:PASSWORD@/car_tuning?host=/cloudsql/car-tuning-ai-494319:europe-west1:car-tuning-db" \
   | gcloud secrets create car-backend-db-url --data-file=-
 ```
 
-> **DATABASE_URL format for Cloud Run:** Must use the Unix socket path (not TCP). Cloud Run injects the Cloud SQL Auth Proxy sidecar at `/cloudsql/<project>:<region>:<instance>`.
+`DATABASE_URL` for Cloud Run must use the Unix socket path. Cloud Run injects the Cloud SQL Auth Proxy sidecar at `/cloudsql/<project>:<region>:<instance>`.
 
 ### Grant access
+
 ```bash
 gcloud iam service-accounts create backend-ms-sa \
   --display-name="car-backend-ms Cloud Run SA"
@@ -111,21 +121,22 @@ Secrets are injected as env vars in `gcloud run deploy` via `--update-secrets`.
 
 ---
 
-## 4. Cloud Run — Service-to-Service Auth
+## 4. Cloud Run - Service-to-Service Auth
 
-`car-segmentation-ms` is deployed with `--no-allow-unauthenticated` (IAM-protected) and `--ingress all`.
+`car-segmentation-ms` is deployed with `--no-allow-unauthenticated` and `--ingress all`.
 
-> **Why `--ingress all` and not `--ingress internal`?** Cloud Run services calling each other via `*.run.app` URLs go through Google's public load balancer, which counts as external traffic. `--ingress internal` blocks this — the connection resets before any HTTP response. `--ingress all` + `--no-allow-unauthenticated` gives the same effective security (only callers with valid GCP identity tokens can invoke the service) without the network-level rejection.
+Cloud Run services calling each other via `*.run.app` URLs go through Google's public load balancer, which counts as external traffic. `--ingress internal` blocks that path. `--ingress all` plus IAM keeps the service private to authorized callers.
 
 `car-backend-ms` gets a GCP-signed identity token from the metadata server on each call to the segmentation service:
 
 ```python
 # car-backend-ms/app/services/proxy_service.py
 token = await _identity_token(audience=settings.SEGMENTATION_MS_URL)
-# token is None outside GCP (local dev) → no Authorization header sent
+# token is None outside GCP, so local dev sends no Authorization header
 ```
 
-### One-time IAM grant (already applied to the live project)
+### One-time IAM grant
+
 ```bash
 gcloud run services add-iam-policy-binding car-segmentation-ms \
   --region europe-west1 \
@@ -137,7 +148,8 @@ gcloud run services add-iam-policy-binding car-segmentation-ms \
 
 ## 5. Cloud Run Deployment
 
-### IAM for GitHub Actions deploy SA
+### IAM for GitHub Actions deploy service account
+
 ```bash
 # Artifact Registry (GCR is backed by Artifact Registry)
 gcloud projects add-iam-policy-binding car-tuning-ai-494319 \
@@ -149,7 +161,7 @@ gcloud projects add-iam-policy-binding car-tuning-ai-494319 \
   --member="serviceAccount:github-deploy-sa@car-tuning-ai-494319.iam.gserviceaccount.com" \
   --role="roles/run.developer"
 
-# Act as backend and segmentation SAs
+# Act as backend and segmentation service accounts
 gcloud iam service-accounts add-iam-policy-binding \
   backend-ms-sa@car-tuning-ai-494319.iam.gserviceaccount.com \
   --member="serviceAccount:github-deploy-sa@car-tuning-ai-494319.iam.gserviceaccount.com" \
@@ -161,7 +173,8 @@ gcloud iam service-accounts add-iam-policy-binding \
   --role="roles/iam.serviceAccountUser"
 ```
 
-### Build and push
+### Build and push manually
+
 ```bash
 gcloud auth configure-docker
 
@@ -172,7 +185,8 @@ docker build -t gcr.io/car-tuning-ai-494319/car-segmentation-ms car-segmentation
 docker push gcr.io/car-tuning-ai-494319/car-segmentation-ms
 ```
 
-### Deploy backend
+### Deploy backend manually
+
 ```bash
 gcloud run deploy car-backend-ms \
   --image gcr.io/car-tuning-ai-494319/car-backend-ms \
@@ -184,7 +198,8 @@ gcloud run deploy car-backend-ms \
   --allow-unauthenticated
 ```
 
-### Deploy segmentation-ms (IAM-protected, GPU)
+### Deploy segmentation-ms manually
+
 ```bash
 gcloud run deploy car-segmentation-ms \
   --image gcr.io/car-tuning-ai-494319/car-segmentation-ms \
@@ -206,15 +221,16 @@ gcloud run deploy car-segmentation-ms \
   --timeout 600
 ```
 
-> **Cold start sequence:** Port opens immediately (Cloud Run TCP probe passes) → models download from GCS in background (~1 min) → SAM ViT-H loads into GPU memory (~2 min). Service returns HTTP 503 until `_models_ready` event is set. Total warm-up: ~3–4 minutes. After warm-up, the instance stays hot as long as requests arrive within ~15 minutes.
+Cold start sequence: port opens immediately, models download from GCS in the background, SAM ViT-H loads into GPU memory, and the service returns HTTP 503 until `_models_ready` is set.
 
 ---
 
-## 6. Firebase Hosting (Frontend)
+## 6. Firebase Hosting
 
-Deployed via GitHub Actions using `npx firebase-tools deploy --only hosting --project slick-tunes`.
+Deployments are automated by `.github/workflows/deploy.yml` when a PR into `main` is merged. The frontend job runs `npm ci`, `npm run build`, then `npx firebase-tools deploy --only hosting --project slick-tunes`.
 
 For manual deploy:
+
 ```bash
 cd car-frontend
 VITE_API_BASE_URL=https://car-backend-ms-130079365217.europe-west1.run.app npm run build
@@ -229,15 +245,15 @@ firebase deploy --only hosting --project slick-tunes
 
 | Variable | Where used | Secret Manager? |
 |---|---|---|
-| `DATABASE_URL` | backend-ms | Yes — `car-backend-db-url` (Unix socket format) |
-| `FIREBASE_PROJECT_ID` | backend-ms | No — value: `slick-tunes` |
-| `FIREBASE_STORAGE_BUCKET` | backend-ms | No — value: `slick-tunes.firebasestorage.app` |
-| `SEGMENTATION_MS_URL` | backend-ms | No — value: `https://car-segmentation-ms-130079365217.europe-west1.run.app` |
-| `CORS_ORIGINS` | backend-ms | No — value: `["https://slick-tunes.web.app"]` |
-| `OPENAI_API_KEY` | segmentation-ms | Yes — `car-backend-openai-key` |
-| `MODEL_BUCKET` | segmentation-ms | No — value: `car-tuning-ai-vision-models` |
-| `VITE_API_BASE_URL` | frontend (build time) | GitHub secret |
-| `VITE_FIREBASE_*` | frontend (build time) | GitHub secrets |
+| `DATABASE_URL` | backend-ms | Yes, `car-backend-db-url` |
+| `FIREBASE_PROJECT_ID` | backend-ms | No, value: `slick-tunes` |
+| `FIREBASE_STORAGE_BUCKET` | backend-ms | No, value: `slick-tunes.firebasestorage.app` |
+| `SEGMENTATION_MS_URL` | backend-ms | No, value: `https://car-segmentation-ms-130079365217.europe-west1.run.app` |
+| `CORS_ORIGINS` | backend-ms | No, value: `["https://slick-tunes.web.app"]` |
+| `OPENAI_API_KEY` | segmentation-ms | Yes, `car-backend-openai-key` |
+| `MODEL_BUCKET` | segmentation-ms | No, value: `car-tuning-ai-vision-models` |
+| `VITE_API_BASE_URL` | frontend build | GitHub secret |
+| `VITE_FIREBASE_*` | frontend build | GitHub secrets |
 
 ---
 
@@ -245,8 +261,8 @@ firebase deploy --only hosting --project slick-tunes
 
 | Secret | Used by |
 |---|---|
-| `GCP_SA_KEY` | All deploy jobs — JSON key for `github-deploy-sa` |
-| `FIREBASE_SERVICE_ACCOUNT_SLICK_TUNES` | Frontend deploy — Firebase SA key JSON |
+| `GCP_SA_KEY` | Deploy jobs; JSON key for `github-deploy-sa` |
+| `FIREBASE_SERVICE_ACCOUNT_SLICK_TUNES` | Frontend deploy; Firebase service account key JSON |
 | `VITE_API_BASE_URL` | Frontend build |
 | `VITE_FIREBASE_API_KEY` | Frontend build |
 | `VITE_FIREBASE_AUTH_DOMAIN` | Frontend build |
@@ -263,13 +279,15 @@ firebase deploy --only hosting --project slick-tunes
 # Start Firebase Storage emulator
 cd car-frontend && firebase emulators:start --only storage
 
-# Terminal 1 — segmentation-ms (no MODEL_BUCKET → uses local ./model/)
+# Terminal 1 - segmentation-ms
+cd car-segmentation-ms
 conda run -n sam-microservice uvicorn server:app --host 0.0.0.0 --port 8000
 
-# Terminal 2 — backend (migrates DB then starts)
+# Terminal 2 - backend
+cd car-backend-ms
 conda run -n car-backend-ms bash -c "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8001 --reload"
 
-# Terminal 3 — frontend
+# Terminal 3 - frontend
 cd car-frontend && npm run dev
 
 # Run tests
@@ -278,4 +296,4 @@ conda run -n sam-microservice python -m pytest tests/ --tb=short -q
 cd car-frontend && npm test
 ```
 
-> **Local identity token:** `proxy_service.py` fetches an identity token from the GCP metadata server. Outside GCP the fetch fails silently and no `Authorization` header is sent — local segmentation (no IAM) keeps working unchanged.
+Local identity token behavior: `proxy_service.py` fetches an identity token from the GCP metadata server. Outside GCP the fetch fails silently and no `Authorization` header is sent, so local segmentation without IAM keeps working.

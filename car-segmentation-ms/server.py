@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 
 from dotenv import find_dotenv, load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse
 from openai import OpenAI
 from PIL import Image, UnidentifiedImageError
 
@@ -136,6 +136,8 @@ async def edit_photo(
         mask_path = os.path.join(tmp_dir, "mask.png")
 
         with open(image_path, "rb") as image_f, open(mask_path, "rb") as mask_f:
+            mask_bytes = mask_f.read()
+            mask_f.seek(0)
             result = client.images.edit(
                 model="gpt-image-1",
                 image=image_f,
@@ -160,6 +162,9 @@ async def edit_photo(
 
         output = io.BytesIO()
         edited_image.save(output, format="PNG")
-        output.seek(0)
+        result_png_bytes = output.getvalue()
 
-    return StreamingResponse(output, media_type="image/png")
+    return JSONResponse({
+        "result_b64": base64.b64encode(result_png_bytes).decode(),
+        "mask_b64": base64.b64encode(mask_bytes).decode(),
+    })
