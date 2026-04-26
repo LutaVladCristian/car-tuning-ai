@@ -67,7 +67,7 @@ car-frontend/src/
     ├── prompt/
     │   └── PromptPreview.tsx
     └── results/
-        ├── ResultDisplay.tsx
+        ├── ResultDisplay.tsx       # shows result image; Download + New edit actions
         └── PhotoHistoryPanel.tsx
 ```
 

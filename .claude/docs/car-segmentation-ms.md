@@ -25,8 +25,8 @@ car-segmentation-ms/
 ## Model Weights (gitignored)
 
 Place in `car-segmentation-ms/model/`:
-- `sam_vit_h_4b8939.pth` — SAM ViT-H
-- `yolov10n.pt` — YOLOv10n (car detection)
+- `sam_vit_h_4b8939.pth` — SAM ViT-H (~2.5 GB)
+- `yolo11n.pt` — YOLO11n car detection (~6 MB; auto-downloaded by Ultralytics on first run)
 
 ## API Endpoints
 
@@ -42,7 +42,8 @@ Place in `car-segmentation-ms/model/`:
 ```
 Input image
     │
-    ▼ YOLOv10n — detect all cars (class 2, conf 0.25; fallback: any object conf 0.75)
+    ▼ YOLO11n — detect cars (class 2, conf 0.25, imgsz 640)
+    │           fallback: any object, conf 0.10, imgsz 640
 All bounding boxes
     │
     ▼ SAM ViT-H — generate one mask per box (multimask_output=False)
@@ -56,6 +57,9 @@ Single binary mask (most prominent car)
 
 **Car selection — `_pick_primary_mask()` (`segmentation.py`):**
 SAM runs on every box YOLO found. The mask with the highest pixel count is chosen. This selects the most prominent car by actual segmented area rather than a bounding-box proxy, and guarantees exactly one mask is sent to OpenAI.
+
+**YOLO inference size (`_YOLO_IMGSZ = 640`):**
+YOLO11n is trained at 640×640. All uploads are capped at this resolution for YOLO inference regardless of original image size, matching the model's training resolution and keeping GPU memory usage predictable. SAM still runs at full image resolution for accurate mask boundaries.
 
 **`apply_binary_mask_for_inpainting()` steps** (`utils.py`):
 1. Resize image to `size` (e.g., `1024x1536`) if provided
@@ -75,6 +79,6 @@ Models are loaded in a background thread via `asyncio.to_thread` so uvicorn bind
 
 **Failure modes:**
 - Models not yet ready → HTTP 503: `"Models still loading, try again shortly"`
-- No car detected by YOLOv10n → HTTP 400: `"No cars detected in the image"`
+- No car detected by YOLO11n → HTTP 400: `"No cars detected in the image"`
 - CUDA unavailable → silently falls back to CPU (inference is significantly slower)
 - OpenAI API error → propagates as HTTP 500

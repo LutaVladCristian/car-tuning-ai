@@ -60,7 +60,6 @@ Thumbs.db
 car-segmentation-ms/car-segmentation-ms
 car-segmentation-ms/model
 # Test data
-car-segmentation-ms/input/
 car-segmentation-ms/output/
 # SQLite dev database
 car-backend-ms/*.db
