@@ -28,19 +28,19 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Constants for initialization
 SAM_CHECKPOINT_PATH = str(_HERE / "model" / "sam_vit_h_4b8939.pth")
 SAM_MODEL_TYPE = "vit_h"
-YOLO_DETECTION_MODEL_PATH = str(_HERE / "model" / "yolov10n.pt")
+YOLO_DETECTION_MODEL_PATH = str(_HERE / "model" / "yolo11n.pt")
 _MAX_IMAGE_DIMENSION = 4096
 _MAX_IMAGE_PIXELS = _MAX_IMAGE_DIMENSION * _MAX_IMAGE_DIMENSION
+_YOLO_IMGSZ = 640  # YOLO11n native training resolution
 
 # Initialize models
 sam_predictor = initialize_sam_model(SAM_CHECKPOINT_PATH, SAM_MODEL_TYPE, DEVICE)
 yolo_detection_model = initialize_yolo_model(YOLO_DETECTION_MODEL_PATH, DEVICE)
 
 
-def _native_yolo_imgsz(img: np.ndarray) -> tuple[int, int]:
-    """Ask YOLO to run at the uploaded image's decoded height and width."""
-    height, width = img.shape[:2]
-    return height, width
+def _yolo_imgsz(img: np.ndarray) -> int:
+    """Return YOLO inference size capped at _YOLO_IMGSZ to avoid degraded detection on large uploads."""
+    return min(_YOLO_IMGSZ, max(img.shape[:2]))
 
 
 def _decode_image_for_cv(content: bytes) -> np.ndarray:
@@ -89,19 +89,19 @@ def segment_car(content, inverse=True, size=None, output_dir=None):
             f"Maximum is {_MAX_IMAGE_DIMENSION}px per side and {_MAX_IMAGE_PIXELS} pixels total."
         )
 
-    native_imgsz = _native_yolo_imgsz(img)
+    imgsz = _yolo_imgsz(img)
 
-    # Try car-class detection first; fall back to any object if nothing found.
+    # Try car-class detection first; fall back to any object at lower confidence if nothing found.
     results_yolo = yolo_detection_model.predict(
         img,
         classes=[2],
         conf=0.25,
-        imgsz=native_imgsz,
+        imgsz=imgsz,
     )
     boxes_yolo = results_yolo[0].boxes.xyxy if len(results_yolo) > 0 else []
 
     if len(boxes_yolo) == 0:
-        results_yolo = yolo_detection_model.predict(img, conf=0.75, imgsz=native_imgsz)
+        results_yolo = yolo_detection_model.predict(img, conf=0.10, imgsz=imgsz)
         boxes_yolo = results_yolo[0].boxes.xyxy if len(results_yolo) > 0 else []
 
     # H1: raise instead of returning a dict so callers get a clean 400 response.
