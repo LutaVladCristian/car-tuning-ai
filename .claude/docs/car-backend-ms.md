@@ -1,65 +1,79 @@
 # car-backend-ms
 
-FastAPI gateway service — Firebase auth, photo persistence, and proxy to `car-segmentation-ms`.
+FastAPI gateway service: Firebase auth, upload validation, photo metadata persistence, Firebase Storage image storage, and proxying to `car-segmentation-ms`.
 
 **Conda env:** `car-backend-ms` (Python 3.12, no ML deps)
-**Port:** 8001
-**Config:** `pydantic-settings` reads `../.env` (repo root) via `env_file = "../.env"`
+**Port:** 8001 locally; Cloud Run uses the injected `PORT` value.
+**Config:** `pydantic-settings` reads `../.env` from the repo root.
 
 ## Commands
 
-See [README.md](../../README.md) for commands.
+See [README.md](../../README.md) for setup, local run commands, and tests.
 
 ## Structure
 
 ```
 car-backend-ms/
-├── main.py                    # FastAPI app, CORS, router registration, GET /health
-├── config.py                  # pydantic-settings reads ../.env
-├── dependencies.py            # Firebase token verification + DB session FastAPI dependencies
-├── alembic/
-│   └── versions/
-│       └── 45e90066957a_db_setup_v1.py  # initial migration (users + photos tables)
-└── app/
-    ├── core/
-    │   └── security.py        # Firebase ID token verification (firebase-admin)
-    ├── db/
-    │   ├── session.py         # SQLAlchemy engine + SessionLocal
-    │   ├── base.py            # declarative Base
-    │   └── models/
-    │       ├── user.py        # User ORM
-    │       └── photo.py       # Photo ORM + OperationType enum
-    ├── routers/
-    │   ├── auth.py            # POST /auth/firebase
-    │   ├── photos.py          # GET /photos, GET /photos/{id}
-    │   └── segmentation.py    # POST /edit-photo
-    ├── schemas/               # Pydantic request/response models
-    └── services/
-        └── proxy_service.py   # httpx forwarding to car-segmentation-ms
+|-- main.py                    # FastAPI app, CORS, router registration, GET /health
+|-- config.py                  # pydantic-settings reads ../.env
+|-- dependencies.py            # Firebase token verification + DB session dependencies
+|-- alembic/
+|   `-- versions/              # DB migrations
+`-- app/
+    |-- core/
+    |   `-- security.py        # Firebase Admin app + ID token verification
+    |-- db/
+    |   |-- session.py         # SQLAlchemy engine + SessionLocal
+    |   |-- base.py            # declarative Base
+    |   `-- models/
+    |       |-- user.py        # User ORM
+    |       `-- photo.py       # Photo ORM + OperationType enum
+    |-- routers/
+    |   |-- auth.py            # POST /auth/firebase
+    |   |-- photos.py          # GET /photos, GET /photos/{id}
+    |   `-- segmentation.py    # POST /edit-photo
+    |-- schemas/               # Pydantic response models
+    `-- services/
+        |-- proxy_service.py   # httpx forwarding to car-segmentation-ms
+        `-- storage_service.py # Firebase Storage upload/download helpers
 ```
 
 ## API Endpoints
 
 | Method | Path | Auth | Description |
-|--------|------|------|-------------|
+|---|---|---|---|
 | GET | `/health` | None | Health check |
-| POST | `/auth/firebase` | None | Exchange Firebase ID token for synced user record |
-| GET | `/photos` | Bearer | List user's photos with pagination (`skip`, `limit`) — returns `{photos, total}` |
-| GET | `/photos/{photo_id}` | Bearer | Stream photo PNG (result image if available, otherwise original) |
-| POST | `/edit-photo` | Bearer | Proxy to segmentation MS (180 s timeout for OpenAI); saves Photo record |
+| POST | `/auth/firebase` | None | Exchange Firebase ID token for a synced backend user record |
+| GET | `/photos` | Bearer | List current user's photo metadata with pagination (`skip`, `limit`) |
+| GET | `/photos/{photo_id}` | Bearer | Stream the result PNG if present, otherwise the original image |
+| POST | `/edit-photo` | Bearer | Validate upload, proxy to segmentation MS, store images and metadata |
 
 ## Auth Flow
 
-1. **Google Sign-In** — browser calls Firebase; Firebase returns a short-lived ID token.
-2. **Sync user** — `POST /auth/firebase` receives `{id_token}`, calls `verify_firebase_token()` (firebase-admin SDK), upserts a `User` row (keyed on `firebase_uid`), and returns the backend user record.
-3. **Protected endpoints** — `dependencies.py` extracts `Authorization: Bearer <token>`, calls `verify_firebase_token()`, and resolves the `User` from the DB. A missing or invalid token returns HTTP 401.
+1. Browser signs in with Firebase Google Sign-In and receives an ID token.
+2. `POST /auth/firebase` receives `{id_token}`, verifies it with `firebase-admin`, upserts a `User` row keyed by `firebase_uid`, and returns the backend user record.
+3. Protected endpoints read `Authorization: Bearer <token>`, verify the token, and resolve the current `User` from the database. Missing or invalid tokens return HTTP 401.
+
+## Upload and Proxy Flow
+
+`POST /edit-photo`:
+
+1. Reads the uploaded file and rejects payloads over 10 MB.
+2. Allows JPEG, PNG, and WEBP based on magic bytes.
+3. Validates `prompt` and `size`; allowed sizes are `auto`, `1024x1024`, `1024x1536`, and `1536x1024`.
+4. Calls `proxy_service.forward_edit_photo()` with a 180 second timeout.
+5. Uploads original and result bytes to Firebase Storage.
+6. Stores a `Photo` row with storage paths and operation metadata.
+7. Streams the result PNG back to the browser.
+
+Outside GCP, `_identity_token()` silently returns `None`, so local backend-to-segmentation calls omit the `Authorization` header. In Cloud Run, the backend gets a metadata-server identity token for the segmentation service audience.
 
 ## Database Schema
 
 **`users` table**
 
 | Column | Type | Constraints |
-|--------|------|-------------|
+|---|---|---|
 | `id` | integer | PK, auto-increment |
 | `firebase_uid` | varchar(128) | unique, not null, indexed |
 | `email` | varchar(255) | unique, not null |
@@ -69,19 +83,28 @@ car-backend-ms/
 **`photos` table**
 
 | Column | Type | Constraints |
-|--------|------|-------------|
+|---|---|---|
 | `id` | integer | PK, auto-increment |
-| `user_id` | integer | FK → users.id, not null |
-| `original_filename` | varchar | |
-| `original_image` | LargeBinary | raw bytes of uploaded file |
-| `result_image` | LargeBinary | nullable — filled after ML processing |
-| `operation_type` | enum | `edit_photo` |
-| `operation_params` | JSON | extra params: `carPartId`, `prompt`, `edit_car`, `inverse`, `size` |
+| `user_id` | integer | FK to `users.id`, not null |
+| `original_filename` | varchar(255) | not null |
+| `original_image_path` | string | Firebase Storage path, not null |
+| `result_image_path` | string | Firebase Storage path, nullable |
+| `operation_type` | enum | currently `edit_photo` |
+| `operation_params` | JSON | `prompt`, `edit_car`, `size` |
 | `created_at` | timestamp | default now() |
 
-Two Alembic migrations: `45e90066957a_db_setup_v1.py` (initial tables) and `c1d2e3f4a5b6_firebase_auth_v2.py` (Firebase auth columns + enum narrowing).
+Current migration files include the initial schema and the blob-to-storage-path migration. Keep new migrations in `car-backend-ms/alembic/versions/`.
 
+## Storage
 
-## Proxy Timeouts
+Image bytes are stored in Firebase Storage, not PostgreSQL. Paths follow:
 
-- `/edit-photo`: 180 s (OpenAI image generation)
+```
+users/{firebase_uid}/photos/{uuid}/{role}.png
+```
+
+`role` is `original` or `result`.
+
+## Proxy Timeout
+
+- `/edit-photo`: 180 seconds, because segmentation plus OpenAI image generation can take 30-90 seconds or more.

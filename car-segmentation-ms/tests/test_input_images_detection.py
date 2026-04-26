@@ -2,13 +2,12 @@
 Integration tests: verify the YOLO stage detects at least one car per reference
 input image (front, back, side views of a single car).
 
-YOLO may return multiple overlapping boxes for the same car — that is normal and
-handled by _pick_primary_mask() in production. The assertion here is only that
-detection does not fail (>= 1 box), which is what prevents the "No cars detected"
-HTTP 400 in the real pipeline.
+The production pipeline then selects one closest-car box before calling SAM.
+This test only checks that the detector stage can produce at least one car box,
+which prevents the "No cars detected" HTTP 400 in the real pipeline.
 
-Skipped automatically when the model is absent so CI never blocks on missing weights.
-Run locally after placing the weights in car-segmentation-ms/model/.
+Skipped automatically when the model is absent so CI never blocks on missing
+weights. Run locally after placing the weights in car-segmentation-ms/model/.
 """
 from pathlib import Path
 
@@ -21,13 +20,14 @@ _YOLO_MODEL = _MODEL_DIR / "yolov10n.pt"
 
 pytestmark = pytest.mark.skipif(
     not _YOLO_MODEL.exists(),
-    reason="yolov10n.pt not found in model/ — skipping integration detection tests",
+    reason="yolov10n.pt not found in model/ - skipping integration detection tests",
 )
 
 
 @pytest.fixture(scope="module")
 def yolo():
     from ultralytics import YOLO
+
     return YOLO(str(_YOLO_MODEL))
 
 
@@ -40,6 +40,6 @@ def test_single_car_detected(yolo, filename):
     boxes = results[0].boxes.xyxy
 
     assert len(boxes) >= 1, (
-        f"{filename}: no car detected — pipeline would raise 'No cars detected in image'. "
+        f"{filename}: no car detected - pipeline would raise 'No cars detected in image'. "
         "Check model path, confidence threshold, or image content."
     )

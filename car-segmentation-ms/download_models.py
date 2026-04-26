@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 _MODEL_DIR = Path(__file__).parent / "model"
-_MODELS = ["sam_vit_h_4b8939.pth", "yolo11n.pt"]
+_MODELS = ["sam_vit_h_4b8939.pth", "yolov10n.pt"]
 
 
 def download_models() -> None:

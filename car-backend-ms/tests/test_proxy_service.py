@@ -21,6 +21,7 @@ def _make_async_client(status_code=200, content=FAKE_PNG):
         mock_resp.raise_for_status.return_value = None
 
     mock_client = AsyncMock()
+    mock_client.get = AsyncMock(side_effect=httpx.ConnectError("metadata unavailable"))
     mock_client.post = AsyncMock(return_value=mock_resp)
 
     ctx = MagicMock()

@@ -3,6 +3,7 @@ import tempfile
 
 import numpy as np
 import pytest
+from PIL import Image
 from utils import apply_binary_mask_for_inpainting
 
 # A small solid-white 10x10 BGR image
@@ -42,12 +43,26 @@ class TestApplyBinaryMaskForInpainting:
         apply_binary_mask_for_inpainting(WHITE_IMAGE, WHITE_MASK, new_dir)
         assert os.path.isdir(new_dir)
 
-    def test_inverse_produces_different_alpha(self, out_dir):
+    def test_edit_car_true_makes_car_area_transparent(self, out_dir):
+        result = apply_binary_mask_for_inpainting(WHITE_IMAGE, WHITE_MASK, out_dir, edit_car=True)
+
+        assert np.all(result[:, :, 3] == 0)
+
+    def test_edit_car_false_makes_background_transparent(self, out_dir):
+        mask = np.zeros((10, 10), dtype=np.uint8)
+        mask[:, :5] = 255
+
+        result = apply_binary_mask_for_inpainting(WHITE_IMAGE, mask, out_dir, edit_car=False)
+
+        assert np.all(result[:, :5, 3] == 255)
+        assert np.all(result[:, 5:, 3] == 0)
+
+    def test_edit_modes_produce_different_alpha(self, out_dir):
         with tempfile.TemporaryDirectory() as out_dir2:
-            normal = apply_binary_mask_for_inpainting(WHITE_IMAGE, WHITE_MASK, out_dir)
-            inverted = apply_binary_mask_for_inpainting(WHITE_IMAGE, WHITE_MASK, out_dir2, inverse=True)
-        # Alpha channels should differ when mask is non-trivial
-        assert not np.array_equal(normal[:, :, 3], inverted[:, :, 3])
+            car_edit = apply_binary_mask_for_inpainting(WHITE_IMAGE, WHITE_MASK, out_dir, edit_car=True)
+            background_edit = apply_binary_mask_for_inpainting(WHITE_IMAGE, WHITE_MASK, out_dir2, edit_car=False)
+
+        assert not np.array_equal(car_edit[:, :, 3], background_edit[:, :, 3])
 
     def test_3d_mask_is_accepted(self, out_dir):
         """A 3-channel mask should be converted to grayscale without error."""
@@ -58,3 +73,12 @@ class TestApplyBinaryMaskForInpainting:
     def test_size_param_resizes_output(self, out_dir):
         result = apply_binary_mask_for_inpainting(WHITE_IMAGE, WHITE_MASK, out_dir, size="20x20")
         assert result.shape[:2] == (20, 20)
+
+    def test_saved_image_and_mask_dimensions_match(self, out_dir):
+        apply_binary_mask_for_inpainting(WHITE_IMAGE, WHITE_MASK, out_dir, size="20x20")
+
+        with (
+            Image.open(os.path.join(out_dir, "image.png")) as image,
+            Image.open(os.path.join(out_dir, "mask.png")) as mask,
+        ):
+            assert image.size == mask.size == (20, 20)

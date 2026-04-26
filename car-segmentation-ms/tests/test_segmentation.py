@@ -1,9 +1,11 @@
 import importlib
 import sys
 from io import BytesIO
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import numpy as np
+import pytest
 from PIL import Image
 
 
@@ -46,16 +48,57 @@ def test_decode_image_for_cv_applies_exif_orientation(monkeypatch):
     assert decoded.shape[:2] == (20, 10)
 
 
-def test_pick_primary_mask_returns_mask_with_most_pixels(monkeypatch):
+def test_select_closest_car_box_prefers_larger_lower_detection(monkeypatch):
     segmentation = _load_segmentation(monkeypatch, use_real_torch=True)
 
-    # Three masks: 100 px, 900 px (largest), 400 px
-    masks = segmentation.torch.zeros(3, 1, 30, 30, dtype=segmentation.torch.bool)
-    masks[0, 0, :10, :10] = True
-    masks[1, 0, :30, :30] = True  # largest — should be selected
-    masks[2, 0, :20, :20] = True
+    boxes = segmentation.torch.tensor(
+        [
+            [20.0, 10.0, 70.0, 40.0],
+            [10.0, 40.0, 90.0, 95.0],
+            [35.0, 50.0, 60.0, 85.0],
+        ]
+    )
 
-    result = segmentation._pick_primary_mask(masks)
+    selected = segmentation._select_closest_car_box(boxes, (100, 100))
 
-    assert result.shape == (30, 30)
-    assert int(result.sum()) == 900
+    assert selected.shape == (1, 4)
+    assert selected.tolist() == [[10.0, 40.0, 90.0, 95.0]]
+
+
+def test_detect_car_boxes_raises_when_no_cars_detected(monkeypatch):
+    segmentation = _load_segmentation(monkeypatch, use_real_torch=True)
+    segmentation.yolo_detection_model.predict.return_value = [
+        SimpleNamespace(boxes=SimpleNamespace(xyxy=segmentation.torch.empty((0, 4))))
+    ]
+
+    with pytest.raises(ValueError, match="No cars detected in image."):
+        segmentation._detect_car_boxes(np.zeros((100, 100, 3), dtype=np.uint8))
+
+
+def test_segment_car_calls_sam_with_one_selected_box(monkeypatch, tmp_path):
+    segmentation = _load_segmentation(monkeypatch, use_real_torch=True)
+
+    source = Image.new("RGB", (100, 100), "white")
+    buf = BytesIO()
+    source.save(buf, format="PNG")
+
+    boxes = segmentation.torch.tensor(
+        [
+            [20.0, 10.0, 70.0, 40.0],
+            [10.0, 40.0, 90.0, 95.0],
+        ]
+    )
+    segmentation.yolo_detection_model.predict.return_value = [
+        SimpleNamespace(boxes=SimpleNamespace(xyxy=boxes))
+    ]
+    segmentation.sam_predictor.device = "cpu"
+    segmentation.sam_predictor.transform.apply_boxes_torch.side_effect = lambda value, _: value
+    masks = segmentation.torch.zeros((1, 1, 100, 100), dtype=segmentation.torch.bool)
+    masks[0, 0, 40:95, 10:90] = True
+    segmentation.sam_predictor.predict_torch.return_value = (masks, None, None)
+
+    segmentation.segment_car(buf.getvalue(), edit_car=True, output_dir=str(tmp_path))
+
+    boxes_arg = segmentation.sam_predictor.predict_torch.call_args.kwargs["boxes"]
+    assert boxes_arg.shape == (1, 4)
+    assert boxes_arg.tolist() == [[10.0, 40.0, 90.0, 95.0]]
