@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     FIREBASE_PROJECT_ID: str
     FIREBASE_STORAGE_BUCKET: str
     SEGMENTATION_MS_URL: str = "http://localhost:8000"
+    REQUIRE_SEGMENTATION_IAM: bool = False
+    EDIT_PHOTO_RATE_LIMIT_PER_HOUR: int = 20
     APP_HOST: str = "0.0.0.0"
     APP_PORT: int = 8001
     # C7: CORS origins are env-var driven so production URLs can be set without
