@@ -53,7 +53,10 @@ class TestEditPhoto:
             data={"prompt": "make it red", "edit_car": "true"},
         )
         assert resp.status_code == 200
-        assert resp.headers["content-type"] == "image/png"
+        assert resp.headers["content-type"] == "application/json"
+        body = resp.json()
+        assert "result_b64" in body and "mask_b64" in body
+        assert Image.open(io.BytesIO(base64.b64decode(body["result_b64"])))
 
     def test_openai_called_with_prompt_and_auto_size(self, client, openai_mock):
         client.post(
@@ -92,7 +95,8 @@ class TestEditPhoto:
             )
 
         assert resp.status_code == 200
-        assert Image.open(io.BytesIO(resp.content)).size == (20, 12)
+        result_bytes = base64.b64decode(resp.json()["result_b64"])
+        assert Image.open(io.BytesIO(result_bytes)).size == (20, 12)
 
     def test_openai_error_returns_500(self, client):
         def _fake_segment(content, edit_car, size, *args, output_dir=None, **kwargs):

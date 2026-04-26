@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 
 from dotenv import find_dotenv, load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse
 from openai import OpenAI
 from PIL import Image, UnidentifiedImageError
 

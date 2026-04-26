@@ -96,6 +96,42 @@ cd car-segmentation-ms
 python -m pytest tests/test_input_images_detection.py -v
 ```
 
+## Linting
+
+Backend and segmentation use [Ruff](https://docs.astral.sh/ruff/) (included in the Conda environments). Frontend uses ESLint (included in `package.json`).
+
+If you created the Conda environments and want to update them with any changes to the `environment-local.yml` files, run:
+
+```cmd
+conda env update -f car-backend-ms/environment-local.yml --prune
+conda env update -f car-segmentation-ms/environment-local.yml --prune
+```
+
+### Run linters
+
+All commands are run from the **repo root**.
+
+Backend:
+
+```cmd
+conda activate car-backend-ms
+ruff check car-backend-ms/
+```
+
+Segmentation:
+
+```cmd
+conda activate sam-microservice
+ruff check car-segmentation-ms/
+```
+
+Frontend (ESLint — no extra install needed, already in `package.json`):
+
+```cmd
+cd car-frontend
+npm run lint
+```
+
 ---
 
 ## Running All Services
