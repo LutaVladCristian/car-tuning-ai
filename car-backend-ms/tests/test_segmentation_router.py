@@ -10,8 +10,11 @@ FAKE_JPEG = b"\xff\xd8\xff" + b"\x00" * 10
 _FAKE_PATH = "users/uid/photos/abc/result.png"
 
 
-def _mock_proxy(return_value=FAKE_PNG):
-    return AsyncMock(return_value=return_value)
+FAKE_MASK = b"\x89PNG_FAKE_MASK"
+
+
+def _mock_proxy(result=FAKE_PNG, mask=FAKE_MASK):
+    return AsyncMock(return_value=(result, mask))
 
 
 def _http_status_error(status_code: int = 503):
