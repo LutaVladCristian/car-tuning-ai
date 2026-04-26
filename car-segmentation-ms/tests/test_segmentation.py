@@ -22,11 +22,14 @@ def _load_segmentation(monkeypatch, *, use_real_torch=False):
     return importlib.import_module("segmentation")
 
 
-def test_native_yolo_imgsz_uses_uploaded_image_dimensions(monkeypatch):
+def test_yolo_imgsz_caps_at_640(monkeypatch):
     segmentation = _load_segmentation(monkeypatch)
 
-    img = np.zeros((721, 1283, 3), dtype=np.uint8)
-    assert segmentation._native_yolo_imgsz(img) == (721, 1283)
+    small = np.zeros((480, 640, 3), dtype=np.uint8)
+    assert segmentation._yolo_imgsz(small) == 640
+
+    large = np.zeros((2160, 3840, 3), dtype=np.uint8)
+    assert segmentation._yolo_imgsz(large) == 640
 
 
 def test_decode_image_for_cv_applies_exif_orientation(monkeypatch):
