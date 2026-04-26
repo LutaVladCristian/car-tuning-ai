@@ -3,9 +3,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 
 from app.db.models.photo import OperationType, Photo
+from app.routers import segmentation as segmentation_router
 
 FAKE_PNG = b"\x89PNG_FAKE_BYTES"
-FAKE_JPEG = b"\xff\xd8\xff" + b"\x00" * 10
+FAKE_IMAGE = (
+    b"\x89PNG\r\n\x1a\n"
+    b"\x00\x00\x00\rIHDR"
+    b"\x00\x00\x00\x01\x00\x00\x00\x01"
+    b"\x08\x02\x00\x00\x00"
+    b"\x90wS\xde"
+)
 
 _FAKE_PATH = "users/uid/photos/abc/result.png"
 
@@ -32,7 +39,7 @@ class TestEditPhoto:
     def test_unauthenticated_returns_401(self, client):
         resp = client.post(
             "/edit-photo",
-            files={"file": ("car.jpg", FAKE_JPEG, "image/jpeg")},
+            files={"file": ("car.png", FAKE_IMAGE, "image/png")},
             data={"prompt": "p", "edit_car": "true"},
         )
         assert resp.status_code == 401
@@ -42,7 +49,7 @@ class TestEditPhoto:
             with patch("app.routers.segmentation.storage_service.upload_photo", _mock_upload()):
                 resp = client.post(
                     "/edit-photo",
-                    files={"file": ("car.jpg", FAKE_JPEG, "image/jpeg")},
+                    files={"file": ("car.png", FAKE_IMAGE, "image/png")},
                     data={"prompt": "make it red", "edit_car": "true"},
                     headers=auth_headers,
                 )
@@ -50,13 +57,36 @@ class TestEditPhoto:
         assert resp.content == FAKE_PNG
         assert resp.headers["content-type"] == "image/png"
 
+    def test_rate_limit_returns_429(self, client, auth_headers):
+        segmentation_router._edit_timestamps_by_uid.clear()
+        settings = MagicMock()
+        settings.EDIT_PHOTO_RATE_LIMIT_PER_HOUR = 1
+        with patch("app.routers.segmentation.get_settings", return_value=settings):
+            with patch("app.routers.segmentation.proxy_service.forward_edit_photo", _mock_proxy()):
+                with patch("app.routers.segmentation.storage_service.upload_photo", _mock_upload()):
+                    first = client.post(
+                        "/edit-photo",
+                        files={"file": ("car.png", FAKE_IMAGE, "image/png")},
+                        data={"prompt": "make it red", "edit_car": "true"},
+                        headers=auth_headers,
+                    )
+                    second = client.post(
+                        "/edit-photo",
+                        files={"file": ("car.png", FAKE_IMAGE, "image/png")},
+                        data={"prompt": "make it red", "edit_car": "true"},
+                        headers=auth_headers,
+                    )
+
+        assert first.status_code == 200
+        assert second.status_code == 429
+
     def test_saves_correct_operation_params(self, client, auth_headers, user_and_token, db):
         user, _ = user_and_token
         with patch("app.routers.segmentation.proxy_service.forward_edit_photo", _mock_proxy()):
             with patch("app.routers.segmentation.storage_service.upload_photo", _mock_upload()):
                 client.post(
                     "/edit-photo",
-                    files={"file": ("car.jpg", FAKE_JPEG, "image/jpeg")},
+                    files={"file": ("car.png", FAKE_IMAGE, "image/png")},
                     data={"prompt": "rally livery", "edit_car": "false", "size": "1024x1024"},
                     headers=auth_headers,
                 )
@@ -72,7 +102,7 @@ class TestEditPhoto:
             with patch("app.routers.segmentation.storage_service.upload_photo", _mock_upload()):
                 client.post(
                     "/edit-photo",
-                    files={"file": ("car.jpg", FAKE_JPEG, "image/jpeg")},
+                    files={"file": ("car.png", FAKE_IMAGE, "image/png")},
                     data={"prompt": "keep resolution", "edit_car": "true"},
                     headers=auth_headers,
                 )
@@ -84,6 +114,22 @@ class TestEditPhoto:
         resp = client.post(
             "/edit-photo",
             files={"file": ("car.jpg", big_jpeg, "image/jpeg")},
+            data={"prompt": "p", "edit_car": "true"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 413
+
+    def test_large_image_dimensions_return_413(self, client, auth_headers):
+        large_png = (
+            b"\x89PNG\r\n\x1a\n"
+            b"\x00\x00\x00\rIHDR"
+            b"\x00\x00\x10\x01\x00\x00\x00\x01"
+            b"\x08\x02\x00\x00\x00"
+            b"\x90wS\xde"
+        )
+        resp = client.post(
+            "/edit-photo",
+            files={"file": ("car.png", large_png, "image/png")},
             data={"prompt": "p", "edit_car": "true"},
             headers=auth_headers,
         )
@@ -101,7 +147,7 @@ class TestEditPhoto:
     def test_blank_prompt_returns_422(self, client, auth_headers):
         resp = client.post(
             "/edit-photo",
-            files={"file": ("car.jpg", FAKE_JPEG, "image/jpeg")},
+            files={"file": ("car.png", FAKE_IMAGE, "image/png")},
             data={"prompt": "   ", "edit_car": "true"},
             headers=auth_headers,
         )
@@ -110,7 +156,7 @@ class TestEditPhoto:
     def test_too_long_prompt_returns_422(self, client, auth_headers):
         resp = client.post(
             "/edit-photo",
-            files={"file": ("car.jpg", FAKE_JPEG, "image/jpeg")},
+            files={"file": ("car.png", FAKE_IMAGE, "image/png")},
             data={"prompt": "x" * 1001, "edit_car": "true"},
             headers=auth_headers,
         )
@@ -119,7 +165,7 @@ class TestEditPhoto:
     def test_invalid_size_returns_422(self, client, auth_headers):
         resp = client.post(
             "/edit-photo",
-            files={"file": ("car.jpg", FAKE_JPEG, "image/jpeg")},
+            files={"file": ("car.png", FAKE_IMAGE, "image/png")},
             data={"prompt": "p", "edit_car": "true", "size": "999x999"},
             headers=auth_headers,
         )
@@ -129,7 +175,7 @@ class TestEditPhoto:
         with patch("app.routers.segmentation.proxy_service.forward_edit_photo", _http_status_error(503)):
             resp = client.post(
                 "/edit-photo",
-                files={"file": ("car.jpg", FAKE_JPEG, "image/jpeg")},
+                files={"file": ("car.png", FAKE_IMAGE, "image/png")},
                 data={"prompt": "p", "edit_car": "true"},
                 headers=auth_headers,
             )
@@ -139,8 +185,21 @@ class TestEditPhoto:
         with patch("app.routers.segmentation.proxy_service.forward_edit_photo", _http_status_error(400)):
             resp = client.post(
                 "/edit-photo",
-                files={"file": ("car.jpg", FAKE_JPEG, "image/jpeg")},
+                files={"file": ("car.png", FAKE_IMAGE, "image/png")},
                 data={"prompt": "p", "edit_car": "true"},
                 headers=auth_headers,
             )
         assert resp.status_code == 400
+
+    def test_invalid_segmentation_response_returns_502(self, client, auth_headers):
+        with patch(
+            "app.routers.segmentation.proxy_service.forward_edit_photo",
+            AsyncMock(side_effect=ValueError("bad response")),
+        ):
+            resp = client.post(
+                "/edit-photo",
+                files={"file": ("car.png", FAKE_IMAGE, "image/png")},
+                data={"prompt": "p", "edit_car": "true"},
+                headers=auth_headers,
+            )
+        assert resp.status_code == 502
