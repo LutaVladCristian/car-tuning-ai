@@ -67,6 +67,7 @@ class TestEditPhoto:
         call_kwargs = openai_mock.images.edit.call_args.kwargs
         assert call_kwargs["prompt"] == "rally livery"
         assert call_kwargs["size"] == "auto"
+        assert call_kwargs["input_fidelity"] == "high"
 
     def test_auto_size_preserves_source_dimensions(self, client):
         source_png = _make_png((20, 12))

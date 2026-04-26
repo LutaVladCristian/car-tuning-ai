@@ -49,13 +49,25 @@ class TestApplyBinaryMaskForInpainting:
         assert np.all(result[:, :, 3] == 0)
 
     def test_edit_car_false_makes_background_transparent(self, out_dir):
-        mask = np.zeros((10, 10), dtype=np.uint8)
-        mask[:, :5] = 255
+        image = np.full((100, 100, 3), 255, dtype=np.uint8)
+        mask = np.zeros((100, 100), dtype=np.uint8)
+        mask[:, :40] = 255
 
-        result = apply_binary_mask_for_inpainting(WHITE_IMAGE, mask, out_dir, edit_car=False)
+        result = apply_binary_mask_for_inpainting(image, mask, out_dir, edit_car=False)
 
-        assert np.all(result[:, :5, 3] == 255)
-        assert np.all(result[:, 5:, 3] == 0)
+        assert np.all(result[:, :40, 3] == 255)
+        assert np.all(result[:, 60:, 3] == 0)
+
+    def test_background_edit_expands_protected_car_area(self, out_dir):
+        image = np.full((100, 100, 3), 255, dtype=np.uint8)
+        mask = np.zeros((100, 100), dtype=np.uint8)
+        mask[40:60, 40:60] = 255
+
+        result = apply_binary_mask_for_inpainting(image, mask, out_dir, edit_car=False)
+
+        assert result[39, 50, 3] == 255
+        assert result[50, 39, 3] == 255
+        assert result[20, 20, 3] == 0
 
     def test_edit_modes_produce_different_alpha(self, out_dir):
         with tempfile.TemporaryDirectory() as out_dir2:

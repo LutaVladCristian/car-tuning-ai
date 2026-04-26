@@ -1,6 +1,6 @@
 import type { TuningFormState, CarEditState, BackgroundEditState } from '../types/tuning';
 
-// ── Car edit prompt ───────────────────────────────────────────────────────
+// Car edit prompt
 
 function buildColorFragment(car: CarEditState): string {
   if (!car.color) return '';
@@ -58,7 +58,7 @@ function buildCarPrompt(car: CarEditState): string {
   );
 }
 
-// ── Background edit prompt ─────────────────────────────────────────────
+// Background edit prompt
 
 const environmentLabels: Record<string, string> = {
   urban: 'a photorealistic urban city street',
@@ -83,10 +83,10 @@ const weatherLabels: Record<string, string> = {
 };
 
 const styleLabels: Record<string, string> = {
-  action: 'a motion blur action shot as if the car is moving at speed',
-  static: 'a clean static display shot',
-  'three-quarter': 'a classic three-quarter angle perspective',
-  dramatic: 'a dramatic low-angle cinematic composition',
+  action: 'subtle cinematic motion cues in the background only',
+  static: 'a clean static display environment',
+  'three-quarter': 'the original camera angle and lens perspective',
+  dramatic: 'dramatic cinematic lighting with stronger contrast',
 };
 
 function buildBackgroundPrompt(bg: BackgroundEditState): string {
@@ -98,15 +98,17 @@ function buildBackgroundPrompt(bg: BackgroundEditState): string {
   return (
     `Replace only the background of this image with ${env} ` +
     `during ${time} with ${weather}. ` +
-    `Frame the scene as ${style}. ` +
-    `Keep the car exactly as it is — do not modify the car body, color, wheels, or any part of it. ` +
+    `Use ${style}. ` +
+    `Preserve the original canvas, camera viewpoint, lens perspective, horizon, car bounding box, car scale, and car position. ` +
+    `Keep the car exactly as it is; do not zoom, crop, shrink, enlarge, rotate, move, redraw, or recompose the car. ` +
+    `Do not modify the car body, color, wheels, windows, mirrors, lights, trim, or any part of it. ` +
     `Use the provided mask to isolate only the background for replacement. ` +
     `Ensure cinematic quality, photorealistic lighting, correct ground reflections, ` +
     `and seamless blending where the car meets the road surface.`
   );
 }
 
-// ── Main export ──────────────────────────────────────────────────────────
+// Main export
 
 export function buildPrompt(form: TuningFormState): string {
   if (form.customPromptOverride !== null) return form.customPromptOverride;

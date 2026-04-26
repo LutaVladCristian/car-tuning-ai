@@ -144,6 +144,7 @@ async def edit_photo(
                 mask=mask_f,
                 prompt=prompt,
                 quality="high",
+                input_fidelity="high",
                 size=size,
             )
     finally:
