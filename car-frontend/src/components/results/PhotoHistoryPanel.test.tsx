@@ -9,6 +9,7 @@ function makePhoto(overrides: Partial<PhotoResponse> = {}): PhotoResponse {
     user_id: 1,
     original_filename: 'car.jpg',
     operation_type: 'edit_photo',
+    status: 'completed',
     operation_params: null,
     created_at: '2026-04-14T12:00:00Z',
     ...overrides,

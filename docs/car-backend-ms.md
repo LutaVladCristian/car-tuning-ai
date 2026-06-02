@@ -31,7 +31,7 @@ car-backend-ms/
     |-- routers/
     |   |-- auth.py            # POST /auth/firebase
     |   |-- photos.py          # GET /photos, GET /photos/{id}, GET /photos/{id}/original
-    |   `-- segmentation.py    # POST /edit-photo
+    |   `-- segmentation.py    # Preview, approve, and cancel edit flow
     |-- schemas/               # Pydantic response models
     `-- services/
         |-- proxy_service.py   # httpx forwarding to car-segmentation-ms
@@ -47,7 +47,11 @@ car-backend-ms/
 | GET | `/photos` | Bearer | List current user's photo metadata with pagination (`skip`, `limit`) |
 | GET | `/photos/{photo_id}` | Bearer | Stream the result PNG if present, otherwise the original image |
 | GET | `/photos/{photo_id}/original` | Bearer | Stream the original uploaded PNG for comparison views |
-| POST | `/edit-photo` | Bearer | Validate upload, proxy to segmentation MS, store images and metadata |
+| POST | `/edit-photo/preview` | Bearer | Run YOLO + SAM and persist a hidden mask preview |
+| POST | `/edit-photo/{id}/generate` | Bearer | Generate an approved preview with OpenAI |
+| DELETE | `/edit-photo/{id}/preview` | Bearer | Delete an unapproved preview |
+| GET | `/photos/{id}/mask/raw` | Bearer | Stream the binary SAM car mask |
+| GET | `/photos/{id}/mask/edit` | Bearer | Stream the effective OpenAI RGBA mask |
 
 ## Auth Flow
 
@@ -57,15 +61,9 @@ car-backend-ms/
 
 ## Upload and Proxy Flow
 
-`POST /edit-photo`:
+`POST /edit-photo/preview` validates the upload, calls segmentation, and stores the original, prepared input, raw mask, and effective OpenAI mask. Preview records stay hidden from history.
 
-1. Reads the uploaded file and rejects payloads over 10 MB.
-2. Allows JPEG, PNG, and WEBP based on magic bytes.
-3. Validates `prompt` and `size`; allowed sizes are `auto`, `1024x1024`, `1024x1536`, and `1536x1024`.
-4. Calls `proxy_service.forward_edit_photo()` with a 180 second timeout.
-5. Uploads original, result, and mask bytes to Firebase Storage.
-6. Stores a `Photo` row with storage paths and operation metadata.
-7. Streams the result PNG back to the browser.
+`POST /edit-photo/{id}/generate` claims an approved preview, calls OpenAI through the segmentation service, saves the result, and marks the record completed. Failed generation restores the preview state for retry. Completed records are idempotent and return their stored result.
 
 Outside GCP, `_identity_token()` returns `None`, so local backend-to-segmentation calls omit the `Authorization` header unless `REQUIRE_SEGMENTATION_IAM=true`. In Cloud Run, the backend gets a metadata-server identity token for the segmentation service audience and production deploys fail closed if that token cannot be fetched.
 
@@ -89,13 +87,16 @@ Outside GCP, `_identity_token()` returns `None`, so local backend-to-segmentatio
 | `user_id` | integer | FK to `users.id`, not null |
 | `original_filename` | varchar(255) | not null |
 | `original_image_path` | string | Firebase Storage path, not null |
+| `prepared_image_path` | string | Prepared inference image path, nullable |
 | `result_image_path` | string | Firebase Storage path, nullable |
+| `raw_mask_image_path` | string | Binary SAM car mask path, nullable |
 | `mask_image_path` | string | Firebase Storage path, nullable |
+| `status` | enum | `preview`, `generating`, or `completed` |
 | `operation_type` | enum | currently `edit_photo` |
 | `operation_params` | JSON | `prompt`, `edit_car`, `size` |
 | `created_at` | timestamp | default now() |
 
-Current migration files include the initial schema, Firebase auth update, blob-to-storage-path migration, and `mask_image_path`. Keep new migrations in `car-backend-ms/alembic/versions/`.
+Current migration files include the initial schema, Firebase auth update, blob-to-storage-path migration, mask storage, and preview state. Keep new migrations in `car-backend-ms/alembic/versions/`.
 
 ## Storage
 
@@ -105,8 +106,8 @@ Image bytes are stored in Firebase Storage, not PostgreSQL. Paths follow:
 users/{firebase_uid}/photos/{uuid}/{role}.png
 ```
 
-`role` is `original`, `result`, or `mask`. Unsupported role names are rejected before upload, and blob metadata includes the Firebase UID and role.
+`role` is `original`, `prepared`, `raw-mask`, `mask`, or `result`. Unsupported role names are rejected before upload, and blob metadata includes the Firebase UID and role.
 
 ## Proxy Timeout
 
-- `/edit-photo`: 180 seconds, because segmentation plus OpenAI image generation can take 30-90 seconds or more.
+- `/edit-photo/preview` and `/edit-photo/{id}/generate`: 180 seconds, because segmentation and OpenAI generation can each be slow.

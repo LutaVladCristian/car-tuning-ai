@@ -21,12 +21,12 @@ Edit `.env` at the repo root. See `.env.example` for all required variables and 
 
 ## Model Weights
 
-Download and place the following files under `car-segmentation-ms/model/` for local development:
+Download and place the following files under `car-segmentation-ms/model/` before local development or building the segmentation container:
 
 - `sam_vit_h_4b8939.pth` - SAM ViT-H (~2.5 GB)
 - `yolov10n.pt` - YOLOv10n COCO car detector (~6 MB)
 
-For deployed segmentation, upload the same filenames to the GCS bucket configured by `MODEL_BUCKET`.
+The segmentation Docker image copies both files into `/app/model/`. They remain gitignored.
 
 ## One-Time Setup
 
@@ -170,4 +170,4 @@ The app is available at **http://localhost:5173**.
 - `edit_car=true`: the closest car is transparent/editable and the background is protected.
 - `edit_car=false`: the background is transparent/editable and the closest car is protected.
 
-The backend stores original/result image bytes in Firebase Storage and stores metadata plus Storage paths in PostgreSQL.
+The frontend shows the raw SAM car mask and the OpenAI editable-area mask for confirmation before generation. The backend stores original, prepared, mask, and result image bytes in Firebase Storage and stores metadata plus Storage paths in PostgreSQL.

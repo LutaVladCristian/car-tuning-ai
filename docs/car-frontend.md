@@ -24,7 +24,7 @@ car-frontend/src/
 |   |-- client.ts                   # Axios instance; Firebase ID token interceptor; 401 -> /login
 |   |-- auth.ts                     # syncFirebaseUser(idToken) -> POST /auth/firebase
 |   |-- photos.ts                   # listPhotos(), getPhotoUrl(), getOriginalPhotoUrl(), getPhotoBlob()
-|   `-- segmentation.ts             # editPhoto()
+|   `-- segmentation.ts             # previewPhoto(), generatePhoto(), deletePreview()
 |-- context/
 |   |-- AuthContext.tsx             # AuthProvider; Firebase onAuthStateChanged, Google Sign-In
 |   |-- authContextCore.ts
@@ -100,12 +100,12 @@ The Axios client requests `auth.currentUser?.getIdToken()` and sets `Authorizati
 
 ### Edit Photo And Comparison Flow
 
-1. Snapshot `GET /photos` total count.
-2. `POST /edit-photo` and wait for the backend response; this can block while OpenAI processes the image.
-3. Poll `GET /photos?limit=1` every 500 ms for up to 10 retries until `total` increases.
-4. Set the new photo ID as the active comparison item.
-5. Fetch the original with `GET /photos/{id}/original` and the generated result with `GET /photos/{id}`.
-6. Display both images in `ImageCompareSlider`, with the original on the left and generated result on the right.
+1. `POST /edit-photo/preview` runs YOLO + SAM.
+2. Fetch and display the raw binary car mask and effective OpenAI mask.
+3. Wait for explicit user approval.
+4. `POST /edit-photo/{id}/generate` calls OpenAI.
+5. Fetch the original and generated result and display them in `ImageCompareSlider`.
+6. Keep completed masks available in a collapsed details section.
 
 History rows call back into `TuningPage`; selecting a row makes that photo ID the active comparison item and highlights the row. The save button downloads the currently active right-side generated/result image, including when the active image came from history.
 

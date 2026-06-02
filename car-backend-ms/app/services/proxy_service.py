@@ -72,9 +72,9 @@ def _decode_limited_b64(value: object, field_name: str) -> bytes:
     return decoded
 
 
-async def forward_edit_photo(
-    content: bytes, filename: str, prompt: str, edit_car: bool, size: str
-) -> tuple[bytes, bytes]:
+async def forward_segment_photo(
+    content: bytes, filename: str, edit_car: bool, size: str
+) -> tuple[bytes, bytes, bytes]:
     settings = get_settings()
     base_url = settings.SEGMENTATION_MS_URL
 
@@ -82,15 +82,39 @@ async def forward_edit_photo(
 
     async with httpx.AsyncClient(timeout=180.0) as client:
         resp = await client.post(
-            f"{base_url}/edit-photo",
+            f"{base_url}/segment-photo",
             files={"file": (filename, content, "image/jpeg")},
-            data={"prompt": prompt, "edit_car": str(edit_car).lower(), "size": size},
+            data={"edit_car": str(edit_car).lower(), "size": size},
             headers=headers,
         )
         resp.raise_for_status()
         data = resp.json()
 
     return (
-        _decode_limited_b64(data.get("result_b64"), "result_b64"),
+        _decode_limited_b64(data.get("image_b64"), "image_b64"),
+        _decode_limited_b64(data.get("raw_mask_b64"), "raw_mask_b64"),
         _decode_limited_b64(data.get("mask_b64"), "mask_b64"),
     )
+
+
+async def forward_generate_photo(
+    image: bytes, mask: bytes, prompt: str, size: str
+) -> bytes:
+    settings = get_settings()
+    base_url = settings.SEGMENTATION_MS_URL
+    headers = await _auth_headers(base_url)
+
+    async with httpx.AsyncClient(timeout=180.0) as client:
+        resp = await client.post(
+            f"{base_url}/generate-photo",
+            files={
+                "file": ("image.png", image, "image/png"),
+                "mask": ("mask.png", mask, "image/png"),
+            },
+            data={"prompt": prompt, "size": size},
+            headers=headers,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    return _decode_limited_b64(data.get("result_b64"), "result_b64")
