@@ -49,7 +49,7 @@ jobs:
             --allow-unauthenticated
 
   deploy-segmentation:
-    name: Deploy pre-built car-segmentation-ms
+    name: Build & Deploy car-segmentation-ms
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
