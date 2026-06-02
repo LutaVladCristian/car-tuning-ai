@@ -122,13 +122,8 @@ def _proxy_error(exc: Exception) -> HTTPException:
             service_detail = exc.response.json().get("detail")
         except ValueError:
             service_detail = None
-<<<<<<< HEAD
         if service_detail in _PASSTHROUGH_SEGMENTATION_ERRORS:
             return HTTPException(status_code=status, detail=service_detail)
-=======
-        if service_detail == "No car is detected by the YOLO model.":
-            return HTTPException(status_code=400, detail=service_detail)
->>>>>>> 55ec023ee60940b7a70189fcc189362016ccd4d5
         return HTTPException(status_code=status if 400 <= status < 500 else 502, detail=f"Segmentation service error: {status}")
     if isinstance(exc, httpx.RequestError):
         return HTTPException(status_code=502, detail="Segmentation service is unavailable.")
