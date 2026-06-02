@@ -8,12 +8,12 @@ Internal FastAPI ML inference service: YOLO car detection, SAM masking, and Open
 
 ## Model Weights
 
-Place these gitignored files in `car-segmentation-ms/model/` before local development or Docker builds:
+Place these gitignored files in `car-segmentation-ms/model/` for local development, or upload them to the GCS bucket configured by `MODEL_BUCKET` for deployment:
 
 - `sam_vit_h_4b8939.pth` - SAM ViT-H
 - `yolov10n.pt` - YOLOv10n COCO detector for class `2 = car`
 
-The Dockerfile copies the weights into `/app/model/`. There is no runtime model download.
+`download_models.py` downloads missing weights before the ML module is imported. Existing local files skip the download.
 
 ## API Endpoints
 
@@ -35,4 +35,4 @@ For background edits, the protected car mask is expanded slightly to preserve wh
 
 ## Startup
 
-Models load in a background thread so uvicorn binds the port immediately. `/health`, `/segment-photo`, and `/generate-photo` return HTTP 503 until initialization finishes. Production Cloud Run deployment uses `/health` as an HTTP startup probe with a 120-second retry window so traffic is not routed to an unready instance.
+Models load in a background thread so uvicorn binds the port immediately. Missing weights are downloaded from `MODEL_BUCKET`, then SAM and YOLO initialize. `/health`, `/segment-photo`, and `/generate-photo` return HTTP 503 until initialization finishes. Production Cloud Run deployment uses `/health` as an HTTP startup probe with a 120-second retry window so traffic is not routed to an unready instance.

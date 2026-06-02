@@ -35,7 +35,11 @@ _working_dir = None
 
 def _load_models() -> None:
     global _segment_car, _working_dir
+    from download_models import download_models
+
+    download_models()
     import segmentation as seg
+
     _segment_car = seg.segment_car
     _working_dir = seg.working_dir
     _models_ready.set()

@@ -5,10 +5,11 @@
 | Service | Target | Notes |
 |---|---|---|
 | `car-backend-ms` | Cloud Run | Auth gateway, database migrations, Firebase Storage writes |
-| `car-segmentation-ms` | Cloud Run GPU | IAM-protected; model weights baked into its image |
+| `car-segmentation-ms` | Cloud Run GPU | IAM-protected; downloads model weights from GCS at startup |
 | `car-frontend` | Firebase Hosting | SPA at `https://slick-tunes.web.app` |
 | PostgreSQL | Cloud SQL | Persistent metadata |
 | Photos | Firebase Storage | Original, prepared, mask, and result PNG files |
+| Model weights | GCS bucket `car-tuning-ai-vision-models` | SAM ViT-H and YOLOv10n weights |
 | Secrets | Secret Manager | `OPENAI_API_KEY` and `DATABASE_URL` |
 
 ## Firebase Storage
@@ -21,24 +22,34 @@ users/{firebase_uid}/photos/{uuid}/{role}.png
 
 Roles are `original`, `prepared`, `raw-mask`, `mask`, and `result`. Firebase rules deny client writes and allow authenticated users to read only their own files.
 
-## Segmentation Image
+## Model Weight Bucket
 
-Model weights are gitignored and baked into the image. Place these files locally before building:
+Model weights remain gitignored. Upload them once to the deployment bucket:
 
-```text
-car-segmentation-ms/model/sam_vit_h_4b8939.pth
-car-segmentation-ms/model/yolov10n.pt
+```bash
+gcloud storage buckets create gs://car-tuning-ai-vision-models \
+  --location=europe-west1 \
+  --uniform-bucket-level-access
+
+gcloud storage cp car-segmentation-ms/model/sam_vit_h_4b8939.pth gs://car-tuning-ai-vision-models/
+gcloud storage cp car-segmentation-ms/model/yolov10n.pt gs://car-tuning-ai-vision-models/
+
+gcloud storage buckets add-iam-policy-binding gs://car-tuning-ai-vision-models \
+  --member="serviceAccount:segmentation-ms-sa@car-tuning-ai-494319.iam.gserviceaccount.com" \
+  --role="roles/storage.objectViewer"
 ```
 
-Build and push from a machine that has the weights:
+`download_models.py` downloads missing weights into `/app/model/` before importing the ML pipeline. For local development, place the same files in `car-segmentation-ms/model/`; local files skip the download.
+
+## Segmentation Image
+
+The image contains code and dependencies only, so GitHub Actions can build and push it at merge time:
 
 ```bash
 gcloud auth configure-docker
 docker build -t gcr.io/car-tuning-ai-494319/car-segmentation-ms car-segmentation-ms/
 docker push gcr.io/car-tuning-ai-494319/car-segmentation-ms
 ```
-
-The GitHub workflow does not build the segmentation image because the weight files are intentionally absent from the repository. Push the baked image before merging a segmentation change; the workflow deploys that pre-built tag with the startup probe.
 
 ## Deploy Segmentation
 
@@ -48,6 +59,7 @@ gcloud run deploy car-segmentation-ms \
   --region europe-west1 \
   --service-account segmentation-ms-sa@car-tuning-ai-494319.iam.gserviceaccount.com \
   --update-secrets OPENAI_API_KEY=car-backend-openai-key:latest \
+  --set-env-vars MODEL_BUCKET=car-tuning-ai-vision-models \
   --no-allow-unauthenticated \
   --ingress all \
   --cpu-boost \
@@ -63,7 +75,7 @@ gcloud run deploy car-segmentation-ms \
   --startup-probe httpGet.path=/health,httpGet.port=8080,periodSeconds=5,timeoutSeconds=5,failureThreshold=24
 ```
 
-The `5 × 24 = 120` second startup-probe window prevents traffic from reaching a revision until SAM and YOLO initialization completes. Baking the weights removes runtime download latency but does not remove GPU initialization time.
+The `5 x 24 = 120` second startup-probe window prevents traffic from reaching a revision until the weights download and SAM/YOLO initialization complete.
 
 ## Deploy Backend
 
@@ -78,11 +90,11 @@ gcloud run deploy car-backend-ms \
   --allow-unauthenticated
 ```
 
-The backend service account needs `roles/run.invoker` on `car-segmentation-ms` and Cloud SQL access. The segmentation service account needs Secret Manager access for `OPENAI_API_KEY`.
+The backend service account needs `roles/run.invoker` on `car-segmentation-ms` and Cloud SQL access. The segmentation service account needs Secret Manager access for `OPENAI_API_KEY` and `roles/storage.objectViewer` on the model bucket.
 
 ## Frontend And Workflow
 
-`.github/workflows/deploy.yml` builds the backend and frontend, deploys them, and deploys the pre-built segmentation image after a pull request into `main` is merged. Frontend hosting deploys use:
+`.github/workflows/deploy.yml` builds and deploys the backend, segmentation service, and frontend after a pull request into `main` is merged. Frontend hosting deploys use:
 
 ```bash
 cd car-frontend
