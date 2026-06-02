@@ -3,6 +3,8 @@ import io
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import httpx
+from openai import BadRequestError
 from PIL import Image
 
 
@@ -39,3 +41,14 @@ def test_generate_photo_calls_openai_after_approval(client):
     assert call_kwargs["prompt"] == "red"
     assert call_kwargs["image"] == ("image.png", PNG, "image/png")
     assert call_kwargs["mask"] == ("mask.png", PNG, "image/png")
+
+
+def test_generate_photo_reports_openai_rejection(client):
+    request = httpx.Request("POST", "https://api.openai.com/v1/images/edits")
+    response = httpx.Response(400, request=request)
+    api = MagicMock()
+    api.images.edit.side_effect = BadRequestError("invalid image", response=response, body=None)
+    with patch("server.client", api):
+        result = client.post("/generate-photo", files={"file": ("image.png", PNG, "image/png"), "mask": ("mask.png", PNG, "image/png")}, data={"prompt": "red", "size": "auto"})
+    assert result.status_code == 502
+    assert result.json()["detail"] == "OpenAI rejected the prepared image or mask. Please try another image."

@@ -69,4 +69,16 @@ describe('useEditPhoto', () => {
     expect(result.current.previewPhotoId).toBe(7);
     expect(result.current.error).toBe('provider down');
   });
+
+  it('shows the OpenAI rejection detail after generation fails', async () => {
+    mockPreview.mockResolvedValueOnce(7);
+    mockGenerate.mockRejectedValueOnce({
+      response: { data: { detail: 'OpenAI rejected the prepared image or mask. Please try another image.' } },
+    });
+    const { result } = renderHook(() => useEditPhoto());
+    await act(async () => result.current.submit(new Blob(), 'red', true));
+    await act(async () => result.current.approve());
+    expect(result.current.status).toBe('awaiting_confirmation');
+    expect(result.current.error).toBe('OpenAI rejected the prepared image or mask. Please try another image.');
+  });
 });

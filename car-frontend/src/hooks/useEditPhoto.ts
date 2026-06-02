@@ -25,7 +25,7 @@ export function useEditPhoto(onSuccess?: () => void) {
       setPreviewPhotoId(photoId);
       setStatus('awaiting_confirmation');
     } catch (err) {
-      setError(parseApiError(err, 'Could not segment the image.'));
+      setError(parseApiError(err, err instanceof Error ? err.message : 'Could not segment the image.'));
       setStatus('error');
     }
   }, []);
@@ -41,7 +41,7 @@ export function useEditPhoto(onSuccess?: () => void) {
       setStatus('success');
       onSuccess?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not generate the image.');
+      setError(parseApiError(err, err instanceof Error ? err.message : 'Could not generate the image.'));
       setStatus('awaiting_confirmation');
     }
   }, [onSuccess, previewPhotoId]);

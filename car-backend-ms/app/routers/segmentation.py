@@ -15,6 +15,10 @@ from dependencies import get_current_user, get_db
 
 router = APIRouter(tags=["segmentation"])
 
+_PASSTHROUGH_SEGMENTATION_ERRORS = {
+    "No car is detected by the YOLO model.",
+    "OpenAI rejected the prepared image or mask. Please try another image.",
+}
 _MAX_FILE_BYTES = 10 * 1024 * 1024
 _MAX_IMAGE_DIMENSION = 4096
 _MAX_IMAGE_PIXELS = _MAX_IMAGE_DIMENSION * _MAX_IMAGE_DIMENSION
@@ -118,8 +122,8 @@ def _proxy_error(exc: Exception) -> HTTPException:
             service_detail = exc.response.json().get("detail")
         except ValueError:
             service_detail = None
-        if service_detail == "No car is detected by the YOLO model.":
-            return HTTPException(status_code=400, detail=service_detail)
+        if service_detail in _PASSTHROUGH_SEGMENTATION_ERRORS:
+            return HTTPException(status_code=status, detail=service_detail)
         return HTTPException(status_code=status if 400 <= status < 500 else 502, detail=f"Segmentation service error: {status}")
     if isinstance(exc, httpx.RequestError):
         return HTTPException(status_code=502, detail="Segmentation service is unavailable.")

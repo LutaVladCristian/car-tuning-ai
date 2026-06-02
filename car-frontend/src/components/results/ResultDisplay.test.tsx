@@ -34,6 +34,13 @@ describe('ResultDisplay', () => {
     expect(screen.getByText('Your result will appear here')).toBeDefined();
   });
 
+  it('shows a dedicated notification when YOLO detects no car', () => {
+    render(<ResultDisplay {...base} status="error" error="No car is detected by the YOLO model." />);
+    expect(screen.getByRole('alert')).toBeDefined();
+    expect(screen.getByText('No car detected')).toBeDefined();
+    expect(screen.getByText('No car is detected by the YOLO model.')).toBeDefined();
+  });
+
   it('shows both masks before approval', async () => {
     mockRawMask.mockResolvedValueOnce('blob:raw');
     mockEditMask.mockResolvedValueOnce('blob:edit');
