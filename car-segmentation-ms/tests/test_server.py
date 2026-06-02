@@ -39,8 +39,10 @@ def test_generate_photo_calls_openai_after_approval(client):
     assert "result_b64" in response.json()
     call_kwargs = api.images.edit.call_args.kwargs
     assert call_kwargs["prompt"] == "red"
-    assert call_kwargs["image"] == ("image.png", PNG, "image/png")
-    assert call_kwargs["mask"] == ("mask.png", PNG, "image/png")
+    assert call_kwargs["image"].name == "image.png"
+    assert call_kwargs["image"].getvalue() == PNG
+    assert call_kwargs["mask"].name == "mask.png"
+    assert call_kwargs["mask"].getvalue() == PNG
 
 
 def test_generate_photo_reports_openai_rejection(client):

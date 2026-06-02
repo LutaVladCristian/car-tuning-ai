@@ -4,6 +4,20 @@ export interface PreviewResponse {
   photo_id: number;
 }
 
+async function getBlobErrorDetail(err: unknown): Promise<string | null> {
+  const data = (err as { response?: { data?: unknown } }).response?.data;
+  if (!(data instanceof Blob)) {
+    return null;
+  }
+
+  try {
+    const payload = JSON.parse(await data.text()) as { detail?: unknown };
+    return typeof payload.detail === 'string' ? payload.detail : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function previewPhoto(
   file: File | Blob,
   prompt: string,
@@ -22,11 +36,16 @@ export async function previewPhoto(
 }
 
 export async function generatePhoto(photoId: number): Promise<Blob> {
-  const res = await apiClient.post(`/edit-photo/${photoId}/generate`, undefined, {
-    responseType: 'blob',
-    timeout: 180_000,
-  });
-  return res.data as Blob;
+  try {
+    const res = await apiClient.post(`/edit-photo/${photoId}/generate`, undefined, {
+      responseType: 'blob',
+      timeout: 180_000,
+    });
+    return res.data as Blob;
+  } catch (err) {
+    const detail = await getBlobErrorDetail(err);
+    throw detail ? new Error(detail) : err;
+  }
 }
 
 export async function deletePreview(photoId: number): Promise<void> {
