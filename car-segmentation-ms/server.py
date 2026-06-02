@@ -168,7 +168,6 @@ async def generate_photo(
     source_width, source_height = _read_upload_image(image_content)
     _read_upload_image(mask_content)
 
-<<<<<<< HEAD
     try:
         result = client.images.edit(
             model="gpt-image-1",
@@ -184,17 +183,6 @@ async def generate_photo(
             status_code=502,
             detail="OpenAI rejected the prepared image or mask. Please try another image.",
         ) from exc
-=======
-    result = client.images.edit(
-        model="gpt-image-1",
-        image=("image.png", image_content, "image/png"),
-        mask=("mask.png", mask_content, "image/png"),
-        prompt=prompt,
-        quality="high",
-        input_fidelity="high",
-        size=size,
-    )
->>>>>>> 55ec023ee60940b7a70189fcc189362016ccd4d5
 
     image_bytes = base64.b64decode(result.data[0].b64_json)
     try:
