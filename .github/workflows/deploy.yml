@@ -49,10 +49,14 @@ jobs:
             --allow-unauthenticated
 
   deploy-segmentation:
-    name: Deploy pre-built car-segmentation-ms
+    name: Build & Deploy car-segmentation-ms
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+        with:
+          ref: main
+
       - name: Authenticate to GCP
         env:
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
@@ -60,13 +64,22 @@ jobs:
           echo "$GCP_SA_KEY" | gcloud auth activate-service-account --key-file=-
           gcloud config set project car-tuning-ai-494319
 
-      - name: Deploy baked segmentation image
+      - name: Configure Docker for GCR
+        run: gcloud auth configure-docker --quiet
+
+      - name: Build and push segmentation image
+        run: |
+          docker build -t gcr.io/car-tuning-ai-494319/car-segmentation-ms car-segmentation-ms/
+          docker push gcr.io/car-tuning-ai-494319/car-segmentation-ms
+
+      - name: Deploy segmentation to Cloud Run
         run: |
           gcloud run deploy car-segmentation-ms \
             --image gcr.io/car-tuning-ai-494319/car-segmentation-ms \
             --region europe-west1 \
             --service-account segmentation-ms-sa@car-tuning-ai-494319.iam.gserviceaccount.com \
             --update-secrets OPENAI_API_KEY=car-backend-openai-key:latest \
+            --set-env-vars MODEL_BUCKET=car-tuning-ai-vision-models \
             --no-allow-unauthenticated \
             --ingress all \
             --cpu-boost \
