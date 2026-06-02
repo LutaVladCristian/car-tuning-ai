@@ -103,6 +103,12 @@ def _read_upload_image(content: bytes) -> tuple[int, int]:
     return _read_source_dimensions(content)
 
 
+def _named_png(content: bytes, filename: str) -> io.BytesIO:
+    stream = io.BytesIO(content)
+    stream.name = filename
+    return stream
+
+
 @app.post("/segment-photo")
 async def segment_photo(
     file: UploadFile = File(...),
@@ -171,8 +177,8 @@ async def generate_photo(
     try:
         result = client.images.edit(
             model="gpt-image-1",
-            image=("image.png", image_content, "image/png"),
-            mask=("mask.png", mask_content, "image/png"),
+            image=_named_png(image_content, "image.png"),
+            mask=_named_png(mask_content, "mask.png"),
             prompt=prompt,
             quality="high",
             input_fidelity="high",
