@@ -21,12 +21,16 @@ Edit `.env` at the repo root. See `.env.example` for all required variables and 
 
 ## Model Weights
 
-Download and place the following files under `car-segmentation-ms/model/` for local development:
+Download and place the following files under `car-segmentation-ms/model/` before local development or building the segmentation container:
 
 - `sam_vit_h_4b8939.pth` - SAM ViT-H (~2.5 GB)
 - `yolov10n.pt` - YOLOv10n COCO car detector (~6 MB)
 
+<<<<<<< HEAD
 For deployed segmentation, upload the same filenames to the GCS bucket configured by `MODEL_BUCKET`. The container downloads missing weights during startup.
+=======
+The segmentation Docker image copies both files into `/app/model/`. They remain gitignored.
+>>>>>>> 81e17ab068b83971db188396d0af1845e2a8bef3
 
 ## One-Time Setup
 

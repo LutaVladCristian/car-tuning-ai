@@ -35,9 +35,12 @@ _working_dir = None
 
 def _load_models() -> None:
     global _segment_car, _working_dir
+<<<<<<< HEAD
     from download_models import download_models
 
     download_models()
+=======
+>>>>>>> 81e17ab068b83971db188396d0af1845e2a8bef3
     import segmentation as seg
 
     _segment_car = seg.segment_car

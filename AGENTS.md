@@ -75,7 +75,7 @@ Persistent database -> Cloud SQL for PostgreSQL
 Photo image storage -> Firebase Storage
 User authentication -> Firebase Authentication / Identity Platform with Google Sign-In
 API keys / model secrets -> Secret Manager
-Model weights -> GCS model bucket
+Model weights -> baked into the segmentation container image
 
 ## Development Notes
 

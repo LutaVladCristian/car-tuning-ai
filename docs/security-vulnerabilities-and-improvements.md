@@ -83,8 +83,13 @@ npm run build
 
 `car-segmentation-ms` ignores `PYSEC-2026-139` in CI because no fixed PyTorch
 release exists. The advisory requires local model loading; the deployed service
+<<<<<<< HEAD
 loads only trusted weights from the deployment-controlled GCS model bucket and
 does not accept serialized model uploads.
+=======
+loads only trusted weights baked into its container image and does not accept
+serialized model uploads.
+>>>>>>> 81e17ab068b83971db188396d0af1845e2a8bef3
 
 | Component | Command | Result |
 |---|---|---|

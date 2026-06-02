@@ -18,6 +18,9 @@ python-dotenv==1.2.2
 openai==2.32.0
 requests==2.33.1
 charset-normalizer==3.4.7
+<<<<<<< HEAD
 
 # GCS model weight download at startup
 google-cloud-storage==3.10.1
+=======
+>>>>>>> 81e17ab068b83971db188396d0af1845e2a8bef3
