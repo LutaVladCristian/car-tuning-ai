@@ -26,6 +26,16 @@ describe('useEditPhoto', () => {
     expect(mockGenerate).not.toHaveBeenCalled();
   });
 
+  it('shows the YOLO no-car message returned by the API', async () => {
+    mockPreview.mockRejectedValueOnce({
+      response: { data: { detail: 'No car is detected by the YOLO model.' } },
+    });
+    const { result } = renderHook(() => useEditPhoto());
+    await act(async () => result.current.submit(new Blob(), 'red', true));
+    expect(result.current.status).toBe('error');
+    expect(result.current.error).toBe('No car is detected by the YOLO model.');
+  });
+
   it('generates an approved preview and reports success', async () => {
     mockPreview.mockResolvedValueOnce(42);
     mockGenerate.mockResolvedValueOnce(new Blob());

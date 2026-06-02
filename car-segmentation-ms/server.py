@@ -170,8 +170,8 @@ async def generate_photo(
 
     result = client.images.edit(
         model="gpt-image-1",
-        image=io.BytesIO(image_content),
-        mask=io.BytesIO(mask_content),
+        image=("image.png", image_content, "image/png"),
+        mask=("mask.png", mask_content, "image/png"),
         prompt=prompt,
         quality="high",
         input_fidelity="high",

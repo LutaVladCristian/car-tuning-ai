@@ -35,4 +35,7 @@ def test_generate_photo_calls_openai_after_approval(client):
         response = client.post("/generate-photo", files={"file": ("image.png", PNG, "image/png"), "mask": ("mask.png", PNG, "image/png")}, data={"prompt": "red", "size": "auto"})
     assert response.status_code == 200
     assert "result_b64" in response.json()
-    assert api.images.edit.call_args.kwargs["prompt"] == "red"
+    call_kwargs = api.images.edit.call_args.kwargs
+    assert call_kwargs["prompt"] == "red"
+    assert call_kwargs["image"] == ("image.png", PNG, "image/png")
+    assert call_kwargs["mask"] == ("mask.png", PNG, "image/png")

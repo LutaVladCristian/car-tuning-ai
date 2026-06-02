@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { deletePreview, generatePhoto, previewPhoto } from '../api/segmentation';
+import { parseApiError } from '../lib/parseApiError';
 
 export type EditPhotoStatus =
   | 'idle'
@@ -24,7 +25,7 @@ export function useEditPhoto(onSuccess?: () => void) {
       setPreviewPhotoId(photoId);
       setStatus('awaiting_confirmation');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not segment the image.');
+      setError(parseApiError(err, 'Could not segment the image.'));
       setStatus('error');
     }
   }, []);
