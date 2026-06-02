@@ -82,7 +82,9 @@ jobs:
 
       - name: Audit dependencies
         working-directory: car-segmentation-ms
-        run: python -m pip_audit -r requirements.txt
+        # PYSEC-2026-139 has no fixed torch release. It is a local model-loading
+        # deserialization issue; this service loads only trusted baked weights.
+        run: python -m pip_audit -r requirements.txt --ignore-vuln PYSEC-2026-139
 
       - name: Test
         working-directory: car-segmentation-ms
