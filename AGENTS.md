@@ -43,11 +43,11 @@ An AI-powered car image manipulation platform. Users upload car photos, choose w
 
 ## Service Docs
 
-Detailed documentation for each service lives under `.claude/docs/`:
+Detailed documentation for each service lives under `.Codex/docs/`:
 
-- [car-backend-ms](/.claude/docs/car-backend-ms.md) - FastAPI auth gateway, SQLAlchemy, Alembic, Firebase Storage
-- [car-segmentation-ms](/.claude/docs/car-segmentation-ms.md) - FastAPI ML inference, YOLOv10n, SAM, OpenAI
-- [car-frontend](/.claude/docs/car-frontend.md) - React 19 + TypeScript SPA
+- [car-backend-ms](/.Codex/docs/car-backend-ms.md) - FastAPI auth gateway, SQLAlchemy, Alembic, Firebase Storage
+- [car-segmentation-ms](/.Codex/docs/car-segmentation-ms.md) - FastAPI ML inference, YOLOv10n, SAM, OpenAI
+- [car-frontend](/.Codex/docs/car-frontend.md) - React 19 + TypeScript SPA
 
 ## Unified Environment Variables
 
