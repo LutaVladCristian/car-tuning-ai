@@ -38,6 +38,12 @@ class TestApplyBinaryMaskForInpainting:
         apply_binary_mask_for_inpainting(WHITE_IMAGE, WHITE_MASK, out_dir)
         assert os.path.exists(os.path.join(out_dir, "mask.png"))
 
+    def test_saves_raw_binary_mask_png(self, out_dir):
+        apply_binary_mask_for_inpainting(WHITE_IMAGE, WHITE_MASK, out_dir)
+        with Image.open(os.path.join(out_dir, "raw-mask.png")) as mask:
+            assert mask.mode == "L"
+            assert set(mask.getdata()) == {255}
+
     def test_creates_output_dir_if_missing(self, tmp_path):
         new_dir = str(tmp_path / "nested" / "output")
         apply_binary_mask_for_inpainting(WHITE_IMAGE, WHITE_MASK, new_dir)

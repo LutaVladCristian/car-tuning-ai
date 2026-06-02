@@ -1,6 +1,4 @@
-# PyTorch — install the appropriate variant BEFORE this file (see README).
-# GPU (CUDA 12.6): pip install torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cu126
-# CPU only:        pip install torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cpu
+# Install the appropriate PyTorch variant before this file. See README.md.
 torch==2.8.0
 torchvision==0.23.0
 torchaudio==2.8.0
@@ -20,6 +18,3 @@ python-dotenv==1.2.2
 openai==2.32.0
 requests==2.33.1
 charset-normalizer==3.4.7
-
-# GCS — model weight download at startup
-google-cloud-storage==3.10.1

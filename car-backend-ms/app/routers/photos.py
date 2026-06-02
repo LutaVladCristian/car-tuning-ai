@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.db.models.photo import Photo
+from app.db.models.photo import Photo, PhotoStatus
 from app.db.models.user import User
 from app.schemas.photo import PhotoListResponse, PhotoResponse
 from app.services import storage_service
@@ -31,7 +31,10 @@ async def list_photos(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
 ) -> PhotoListResponse:
-    query = db.query(Photo).filter(Photo.user_id == current_user.id)
+    query = db.query(Photo).filter(
+        Photo.user_id == current_user.id,
+        Photo.status == PhotoStatus.completed,
+    )
     total = query.count()
     photos = query.order_by(Photo.created_at.desc()).offset(skip).limit(limit).all()
     return PhotoListResponse(
@@ -49,6 +52,36 @@ async def download_original_photo(
     photo = _get_owned_photo(photo_id, current_user, db)
     data = storage_service.download_photo(photo.original_image_path)
     return StreamingResponse(BytesIO(data), media_type="image/png")
+
+
+@router.get("/{photo_id}/mask/raw")
+async def download_raw_mask(
+    photo_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    photo = _get_owned_photo(photo_id, current_user, db)
+    if not photo.raw_mask_image_path:
+        raise HTTPException(status_code=404, detail="Raw mask not found")
+    return StreamingResponse(
+        BytesIO(storage_service.download_photo(photo.raw_mask_image_path)),
+        media_type="image/png",
+    )
+
+
+@router.get("/{photo_id}/mask/edit")
+async def download_edit_mask(
+    photo_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    photo = _get_owned_photo(photo_id, current_user, db)
+    if not photo.mask_image_path:
+        raise HTTPException(status_code=404, detail="Edit mask not found")
+    return StreamingResponse(
+        BytesIO(storage_service.download_photo(photo.mask_image_path)),
+        media_type="image/png",
+    )
 
 
 @router.get("/{photo_id}")

@@ -63,6 +63,7 @@ def apply_binary_mask_for_inpainting(image, mask, output_dir, edit_car=False, si
 
     mask = cv2.resize(mask, (image.shape[1], image.shape[0]), interpolation=cv2.INTER_NEAREST)
     _, binary_mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
+    Image.fromarray(binary_mask, mode="L").save(os.path.join(output_dir, "raw-mask.png"))
 
     if not edit_car:
         binary_mask = _expand_mask_for_background_edit(binary_mask)

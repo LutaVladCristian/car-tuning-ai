@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from app.db.models.photo import OperationType
+from app.db.models.photo import OperationType, PhotoStatus
 
 
 class PhotoResponse(BaseModel):
@@ -10,6 +10,7 @@ class PhotoResponse(BaseModel):
     user_id: int
     original_filename: str
     operation_type: OperationType
+    status: PhotoStatus
     operation_params: dict | None = None
     created_at: datetime
 

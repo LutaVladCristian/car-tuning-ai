@@ -16,7 +16,7 @@ from sqlalchemy.pool import StaticPool
 import app.db.models.photo  # noqa: F401
 import app.db.models.user  # noqa: F401
 from app.db.base import Base
-from app.db.models.photo import OperationType, Photo
+from app.db.models.photo import OperationType, Photo, PhotoStatus
 from app.db.models.user import User
 from dependencies import get_db
 
@@ -96,6 +96,7 @@ def make_photo(db):
         operation_type=OperationType.edit_photo,
         original_image_path="gs://test-bucket/users/uid/photos/abc/original.png",
         result_image_path="gs://test-bucket/users/uid/photos/abc/result.png",
+        status=PhotoStatus.completed,
         operation_params=None,
     ):
         photo = Photo(
@@ -103,6 +104,7 @@ def make_photo(db):
             original_filename=filename,
             original_image_path=original_image_path,
             result_image_path=result_image_path,
+            status=status,
             operation_type=operation_type,
             operation_params=operation_params or {},
         )

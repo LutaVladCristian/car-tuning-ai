@@ -15,6 +15,12 @@ class OperationType(StrEnum):
     edit_photo = "edit_photo"
 
 
+class PhotoStatus(StrEnum):
+    preview = "preview"
+    generating = "generating"
+    completed = "completed"
+
+
 class Photo(Base):
     __tablename__ = "photos"
 
@@ -24,8 +30,13 @@ class Photo(Base):
     )
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     original_image_path: Mapped[str] = mapped_column(String, nullable=False)
+    prepared_image_path: Mapped[str | None] = mapped_column(String, nullable=True)
     result_image_path: Mapped[str | None] = mapped_column(String, nullable=True)
+    raw_mask_image_path: Mapped[str | None] = mapped_column(String, nullable=True)
     mask_image_path: Mapped[str | None] = mapped_column(String, nullable=True)
+    status: Mapped[PhotoStatus] = mapped_column(
+        Enum(PhotoStatus), nullable=False, default=PhotoStatus.completed
+    )
     operation_type: Mapped[OperationType] = mapped_column(
         Enum(OperationType), nullable=False
     )

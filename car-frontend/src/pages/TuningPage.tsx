@@ -21,10 +21,10 @@ export default function TuningPage() {
   const [activeComparisonPhotoIdOverride, setActiveComparisonPhotoIdOverride] = useState<number | null>(null);
 
   const { photos, total, isLoading: historyLoading, hasMore, refetch, fetchMore } = usePhotoHistory();
-  const { status, resultPhotoId, error, submit, reset } = useEditPhoto(refetch);
+  const { status, resultPhotoId, previewPhotoId, error, submit, approve, cancel, reset } = useEditPhoto(refetch);
 
   const prompt = useMemo(() => buildPrompt(formState), [formState]);
-  const isSubmitting = status === 'submitting' || status === 'polling';
+  const isSubmitting = status === 'segmenting' || status === 'generating';
   const activeComparisonPhotoId = activeComparisonPhotoIdOverride ?? resultPhotoId;
   const canSubmit = !isSubmitting && (
     (imageSource === 'upload' && uploadedFile !== null) ||
@@ -113,9 +113,9 @@ export default function TuningPage() {
                 } text-white disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none`}
               >
                 {isSubmitting
-                  ? status === 'submitting'
-                    ? 'Processing with AI...'
-                    : 'Saving...'
+                  ? status === 'segmenting'
+                    ? 'Preparing masks...'
+                    : 'Generating...'
                   : `Generate ${formState.target === 'car' ? 'Car Edit' : 'Background'}`}
               </button>
 
@@ -132,8 +132,11 @@ export default function TuningPage() {
                 <ResultDisplay
                   status={status}
                   resultPhotoId={resultPhotoId}
+                  previewPhotoId={previewPhotoId}
                   activePhotoId={activeComparisonPhotoId}
                   error={error}
+                  onApprove={approve}
+                  onCancel={cancel}
                   onReset={handleReset}
                 />
               </div>

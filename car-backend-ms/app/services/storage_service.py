@@ -4,7 +4,7 @@ from firebase_admin import storage
 
 from app.core.security import _get_app
 
-_ALLOWED_ROLES = {"original", "result", "mask"}
+_ALLOWED_ROLES = {"original", "prepared", "result", "raw-mask", "mask"}
 
 
 def upload_photo(firebase_uid: str, role: str, data: bytes) -> str:
@@ -24,3 +24,10 @@ def download_photo(path: str) -> bytes:
     """Download and return raw bytes for a stored photo blob path."""
     _get_app()
     return storage.bucket().blob(path).download_as_bytes()
+
+
+def delete_photo(path: str | None) -> None:
+    """Delete a photo blob when it exists."""
+    if path:
+        _get_app()
+        storage.bucket().blob(path).delete()

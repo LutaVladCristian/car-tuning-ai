@@ -1,74 +1,66 @@
-import { useState, useCallback } from 'react';
-import { editPhoto } from '../api/segmentation';
-import { listPhotos } from '../api/photos';
+import { useCallback, useState } from 'react';
+import { deletePreview, generatePhoto, previewPhoto } from '../api/segmentation';
 
-export type EditPhotoStatus = 'idle' | 'submitting' | 'polling' | 'success' | 'error';
+export type EditPhotoStatus =
+  | 'idle'
+  | 'segmenting'
+  | 'awaiting_confirmation'
+  | 'generating'
+  | 'success'
+  | 'error';
 
-interface UseEditPhotoReturn {
-  status: EditPhotoStatus;
-  resultPhotoId: number | null;
-  error: string | null;
-  submit: (file: File | Blob, prompt: string, editCar: boolean) => Promise<void>;
-  reset: () => void;
-}
-
-// M9: Named constants replace inline magic numbers.
-const POLL_INTERVAL_MS = 500;
-const POLL_MAX_RETRIES = 10;
-
-function sleep(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms));
-}
-
-export function useEditPhoto(onSuccess?: () => void): UseEditPhotoReturn {
+export function useEditPhoto(onSuccess?: () => void) {
   const [status, setStatus] = useState<EditPhotoStatus>('idle');
   const [resultPhotoId, setResultPhotoId] = useState<number | null>(null);
+  const [previewPhotoId, setPreviewPhotoId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const submit = useCallback(
-    async (file: File | Blob, prompt: string, editCar: boolean) => {
-      setStatus('submitting');
-      setError(null);
-      setResultPhotoId(null);
-
-      try {
-        // Snapshot current count before submitting
-        const before = await listPhotos(0, 1);
-        const beforeTotal = before.total;
-
-        // This call blocks for 30-90s while OpenAI processes
-        await editPhoto(file, prompt, editCar);
-
-        // Poll for the new DB record (insert is synchronous before response)
-        setStatus('polling');
-        let newId: number | null = null;
-        for (let i = 0; i < POLL_MAX_RETRIES; i++) {
-          await sleep(POLL_INTERVAL_MS);
-          const after = await listPhotos(0, 1);
-          if (after.total > beforeTotal) {
-            newId = after.photos[0]?.id ?? null;
-            break;
-          }
-        }
-
-        setResultPhotoId(newId);
-        setStatus('success');
-        onSuccess?.();
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'An error occurred. Please try again.';
-        setError(message);
-        setStatus('error');
-      }
-    },
-    [onSuccess]
-  );
-
-  const reset = useCallback(() => {
-    setStatus('idle');
-    setResultPhotoId(null);
+  const submit = useCallback(async (file: File | Blob, prompt: string, editCar: boolean) => {
+    setStatus('segmenting');
     setError(null);
+    setResultPhotoId(null);
+    try {
+      const photoId = await previewPhoto(file, prompt, editCar);
+      setPreviewPhotoId(photoId);
+      setStatus('awaiting_confirmation');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not segment the image.');
+      setStatus('error');
+    }
   }, []);
 
-  return { status, resultPhotoId, error, submit, reset };
+  const approve = useCallback(async () => {
+    if (previewPhotoId === null) return;
+    setStatus('generating');
+    setError(null);
+    try {
+      await generatePhoto(previewPhotoId);
+      setResultPhotoId(previewPhotoId);
+      setPreviewPhotoId(null);
+      setStatus('success');
+      onSuccess?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not generate the image.');
+      setStatus('awaiting_confirmation');
+    }
+  }, [onSuccess, previewPhotoId]);
+
+  const cancel = useCallback(async () => {
+    if (previewPhotoId !== null) {
+      await deletePreview(previewPhotoId);
+    }
+    setPreviewPhotoId(null);
+    setResultPhotoId(null);
+    setError(null);
+    setStatus('idle');
+  }, [previewPhotoId]);
+
+  const reset = useCallback(() => {
+    setPreviewPhotoId(null);
+    setResultPhotoId(null);
+    setError(null);
+    setStatus('idle');
+  }, []);
+
+  return { status, resultPhotoId, previewPhotoId, error, submit, approve, cancel, reset };
 }

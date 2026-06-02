@@ -37,17 +37,19 @@ An AI-powered car image manipulation platform. Users upload car photos, choose w
 **Request flow:**
 1. Browser authenticates with Firebase and sends image + form data to `car-backend-ms`.
 2. Backend verifies the Firebase ID token, validates the upload, and proxies the request to `car-segmentation-ms`.
-3. Segmentation service detects the closest car with YOLOv10n, refines its mask with SAM, calls OpenAI for `/edit-photo`, and returns base64 result/mask PNGs.
-4. Backend stores the original, result, and mask images in Firebase Storage, stores paths/metadata in PostgreSQL, and returns the result PNG to the browser.
-5. Frontend displays the saved original/result pair in an interactive comparison slider; history selections load their pair into the same slider.
+3. Segmentation service detects the closest car with YOLOv10n and refines its mask with SAM for `/segment-photo`.
+4. Browser displays the raw car mask and effective OpenAI mask for confirmation.
+5. After approval, the segmentation service calls OpenAI through `/generate-photo`.
+6. Backend stores the original, prepared, result, and mask images in Firebase Storage, stores paths/metadata in PostgreSQL, and returns the result PNG to the browser.
+7. Frontend displays the saved original/result pair in an interactive comparison slider; history selections load their pair into the same slider.
 
 ## Service Docs
 
 Detailed documentation for each service lives under `.Codex/docs/`:
 
-- [car-backend-ms](/.Codex/docs/car-backend-ms.md) - FastAPI auth gateway, SQLAlchemy, Alembic, Firebase Storage
-- [car-segmentation-ms](/.Codex/docs/car-segmentation-ms.md) - FastAPI ML inference, YOLOv10n, SAM, OpenAI
-- [car-frontend](/.Codex/docs/car-frontend.md) - React 19 + TypeScript SPA
+- [car-backend-ms](/docs/car-backend-ms.md) - FastAPI auth gateway, SQLAlchemy, Alembic, Firebase Storage
+- [car-segmentation-ms](/docs/car-segmentation-ms.md) - FastAPI ML inference, YOLOv10n, SAM, OpenAI
+- [car-frontend](/docs/car-frontend.md) - React 19 + TypeScript SPA
 
 ## Unified Environment Variables
 
@@ -73,7 +75,7 @@ Persistent database -> Cloud SQL for PostgreSQL
 Photo image storage -> Firebase Storage
 User authentication -> Firebase Authentication / Identity Platform with Google Sign-In
 API keys / model secrets -> Secret Manager
-Model weights -> GCS model bucket
+Model weights -> baked into the segmentation container image
 
 ## Development Notes
 

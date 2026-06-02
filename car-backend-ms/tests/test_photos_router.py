@@ -25,6 +25,14 @@ class TestListPhotos:
         assert body["total"] == 2
         assert len(body["photos"]) == 2
 
+    def test_excludes_unapproved_previews(self, client, auth_headers, user_and_token, make_photo):
+        from app.db.models.photo import PhotoStatus
+
+        user, _ = user_and_token
+        make_photo(user, status=PhotoStatus.preview)
+        resp = client.get("/photos", headers=auth_headers)
+        assert resp.json()["total"] == 0
+
     def test_does_not_return_other_users_photos(self, client, auth_headers, user_and_token, make_user, make_photo):
         user, _ = user_and_token
         other = make_user(firebase_uid="bob-uid", email="bob@example.com")
@@ -57,6 +65,21 @@ class TestListPhotos:
 
 
 class TestDownloadPhoto:
+    def test_returns_raw_mask(self, client, auth_headers, user_and_token, make_photo):
+        user, _ = user_and_token
+        photo = make_photo(user)
+        photo.raw_mask_image_path = "raw-mask"
+        with patch("app.routers.photos.storage_service.download_photo", return_value=b"raw"):
+            resp = client.get(f"/photos/{photo.id}/mask/raw", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.content == b"raw"
+
+    def test_missing_raw_mask_returns_404(self, client, auth_headers, user_and_token, make_photo):
+        user, _ = user_and_token
+        photo = make_photo(user)
+        resp = client.get(f"/photos/{photo.id}/mask/raw", headers=auth_headers)
+        assert resp.status_code == 404
+
     def test_returns_original_image_from_original_endpoint(self, client, auth_headers, user_and_token, make_photo):
         user, _ = user_and_token
         photo = make_photo(user)
