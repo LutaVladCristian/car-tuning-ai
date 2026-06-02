@@ -25,7 +25,11 @@ export function useEditPhoto(onSuccess?: () => void) {
       setPreviewPhotoId(photoId);
       setStatus('awaiting_confirmation');
     } catch (err) {
+<<<<<<< HEAD
       setError(parseApiError(err, err instanceof Error ? err.message : 'Could not segment the image.'));
+=======
+      setError(parseApiError(err, 'Could not segment the image.'));
+>>>>>>> 55ec023ee60940b7a70189fcc189362016ccd4d5
       setStatus('error');
     }
   }, []);

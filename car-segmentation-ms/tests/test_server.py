@@ -41,6 +41,7 @@ def test_generate_photo_calls_openai_after_approval(client):
     assert call_kwargs["prompt"] == "red"
     assert call_kwargs["image"] == ("image.png", PNG, "image/png")
     assert call_kwargs["mask"] == ("mask.png", PNG, "image/png")
+<<<<<<< HEAD
 
 
 def test_generate_photo_reports_openai_rejection(client):
@@ -52,3 +53,5 @@ def test_generate_photo_reports_openai_rejection(client):
         result = client.post("/generate-photo", files={"file": ("image.png", PNG, "image/png"), "mask": ("mask.png", PNG, "image/png")}, data={"prompt": "red", "size": "auto"})
     assert result.status_code == 502
     assert result.json()["detail"] == "OpenAI rejected the prepared image or mask. Please try another image."
+=======
+>>>>>>> 55ec023ee60940b7a70189fcc189362016ccd4d5
