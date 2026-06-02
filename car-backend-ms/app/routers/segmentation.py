@@ -195,12 +195,19 @@ async def generate_edit_photo(
     if claimed != 1:
         raise HTTPException(status_code=409, detail="Photo preview is already being generated.")
     db.refresh(photo)
+    params = photo.operation_params or {}
+    prompt = params.get("prompt")
+    size = params.get("size")
+    if not isinstance(prompt, str) or not isinstance(size, str):
+        photo.status = PhotoStatus.preview
+        db.commit()
+        raise HTTPException(status_code=409, detail="Photo preview is missing generation parameters.")
     try:
         result = await proxy_service.forward_generate_photo(
             storage_service.download_photo(photo.prepared_image_path),
             storage_service.download_photo(photo.mask_image_path),
-            photo.operation_params["prompt"],
-            photo.operation_params["size"],
+            prompt,
+            size,
         )
     except (httpx.HTTPStatusError, httpx.RequestError, ValueError) as exc:
         photo.status = PhotoStatus.preview

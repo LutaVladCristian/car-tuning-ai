@@ -29,7 +29,12 @@ def test_preview_persists_hidden_masks(client, auth_headers, db):
 
 def test_generate_completes_preview(client, auth_headers, user_and_token, db, make_photo):
     user, _ = user_and_token
-    photo = make_photo(user, result_image_path=None, status=PhotoStatus.preview)
+    photo = make_photo(
+        user,
+        result_image_path=None,
+        status=PhotoStatus.preview,
+        operation_params={"prompt": "red", "size": "auto"},
+    )
     photo.prepared_image_path = "prepared"
     photo.mask_image_path = "mask"
     db.commit()
@@ -40,6 +45,18 @@ def test_generate_completes_preview(client, auth_headers, user_and_token, db, ma
     assert response.status_code == 200
     db.refresh(photo)
     assert photo.status == PhotoStatus.completed
+
+
+def test_generate_rejects_preview_missing_params(client, auth_headers, user_and_token, db, make_photo):
+    user, _ = user_and_token
+    photo = make_photo(user, result_image_path=None, status=PhotoStatus.preview)
+    photo.prepared_image_path = "prepared"
+    photo.mask_image_path = "mask"
+    db.commit()
+    response = client.post(f"/edit-photo/{photo.id}/generate", headers=auth_headers)
+    assert response.status_code == 409
+    db.refresh(photo)
+    assert photo.status == PhotoStatus.preview
 
 
 def test_delete_preview_removes_record(client, auth_headers, user_and_token, db, make_photo):
