@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from dotenv import find_dotenv, load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
-from openai import OpenAI
+from openai import BadRequestError, OpenAI
 from PIL import Image, UnidentifiedImageError
 
 load_dotenv(find_dotenv())
@@ -168,15 +168,21 @@ async def generate_photo(
     source_width, source_height = _read_upload_image(image_content)
     _read_upload_image(mask_content)
 
-    result = client.images.edit(
-        model="gpt-image-1",
-        image=("image.png", image_content, "image/png"),
-        mask=("mask.png", mask_content, "image/png"),
-        prompt=prompt,
-        quality="high",
-        input_fidelity="high",
-        size=size,
-    )
+    try:
+        result = client.images.edit(
+            model="gpt-image-1",
+            image=("image.png", image_content, "image/png"),
+            mask=("mask.png", mask_content, "image/png"),
+            prompt=prompt,
+            quality="high",
+            input_fidelity="high",
+            size=size,
+        )
+    except BadRequestError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="OpenAI rejected the prepared image or mask. Please try another image.",
+        ) from exc
 
     image_bytes = base64.b64decode(result.data[0].b64_json)
     try:

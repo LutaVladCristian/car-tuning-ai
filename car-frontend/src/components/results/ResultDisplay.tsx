@@ -31,6 +31,8 @@ function Spinner() {
   return <div className="w-8 h-8 border-2 border-zinc-600 border-t-accent-blue rounded-full animate-spin" />;
 }
 
+const NO_CAR_DETECTED = 'No car is detected by the YOLO model.';
+
 function MaskPreview({ urls }: { urls: PhotoUrls | null }) {
   if (!urls?.rawMaskUrl && !urls?.editMaskUrl) return null;
   return (
@@ -106,7 +108,8 @@ export default function ResultDisplay({
     return <div className="flex flex-col items-center justify-center min-h-64 gap-4"><Spinner /><p className="text-zinc-300 text-sm">Detecting car and preparing masks...</p></div>;
   }
   if (status === 'error') {
-    return <div className="space-y-4 text-center py-8"><p className="text-red-400 text-sm">Something went wrong</p><p className="text-zinc-500 text-xs">{error}</p><button type="button" onClick={onReset} className="text-xs border border-surface-600 px-4 py-1.5 rounded-md">Try again</button></div>;
+    const noCarDetected = error === NO_CAR_DETECTED;
+    return <div role="alert" className="space-y-4 text-center py-8"><p className="text-red-400 text-sm">{noCarDetected ? 'No car detected' : 'Something went wrong'}</p><p className="text-zinc-500 text-xs">{error}</p><button type="button" onClick={onReset} className="text-xs border border-surface-600 px-4 py-1.5 rounded-md">Try again</button></div>;
   }
   if (isPreview) {
     return (

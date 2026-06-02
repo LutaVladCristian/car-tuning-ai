@@ -71,6 +71,23 @@ def test_generate_rejects_preview_missing_params(client, auth_headers, user_and_
     assert photo.status == PhotoStatus.preview
 
 
+def test_generate_reports_openai_rejection(client, auth_headers, user_and_token, db, make_photo):
+    user, _ = user_and_token
+    photo = make_photo(user, result_image_path=None, status=PhotoStatus.preview, operation_params={"prompt": "red", "size": "auto"})
+    photo.prepared_image_path = "prepared"
+    photo.mask_image_path = "mask"
+    db.commit()
+    request = httpx.Request("POST", "http://fake-seg:8000/generate-photo")
+    response = httpx.Response(502, request=request, json={"detail": "OpenAI rejected the prepared image or mask. Please try another image."})
+    error = httpx.HTTPStatusError("Provider rejected image", request=request, response=response)
+    with patch("app.routers.segmentation.storage_service.download_photo", MagicMock(return_value=FAKE_PNG)), patch(
+        "app.routers.segmentation.proxy_service.forward_generate_photo", AsyncMock(side_effect=error)
+    ):
+        result = client.post(f"/edit-photo/{photo.id}/generate", headers=auth_headers)
+    assert result.status_code == 502
+    assert result.json()["detail"] == "OpenAI rejected the prepared image or mask. Please try another image."
+
+
 def test_delete_preview_removes_record(client, auth_headers, user_and_token, db, make_photo):
     user, _ = user_and_token
     photo = make_photo(user, result_image_path=None, status=PhotoStatus.preview)
