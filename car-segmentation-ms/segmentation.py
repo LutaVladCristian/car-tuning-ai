@@ -75,11 +75,11 @@ def _detect_car_boxes(img: np.ndarray) -> torch.Tensor:
         imgsz=_yolo_imgsz(img),
     )
     if len(results) == 0:
-        raise ValueError("No cars detected in image.")
+        raise ValueError("No car is detected by the YOLO model.")
 
     boxes = results[0].boxes.xyxy
     if len(boxes) == 0:
-        raise ValueError("No cars detected in image.")
+        raise ValueError("No car is detected by the YOLO model.")
 
     return boxes
 

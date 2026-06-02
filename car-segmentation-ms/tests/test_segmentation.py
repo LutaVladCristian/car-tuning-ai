@@ -71,7 +71,7 @@ def test_detect_car_boxes_raises_when_no_cars_detected(monkeypatch):
         SimpleNamespace(boxes=SimpleNamespace(xyxy=segmentation.torch.empty((0, 4))))
     ]
 
-    with pytest.raises(ValueError, match="No cars detected in image."):
+    with pytest.raises(ValueError, match="No car is detected by the YOLO model."):
         segmentation._detect_car_boxes(np.zeros((100, 100, 3), dtype=np.uint8))
 
 

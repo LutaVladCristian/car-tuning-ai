@@ -1,5 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
+
 from app.db.models.photo import Photo, PhotoStatus
 
 FAKE_IMAGE = (
@@ -25,6 +27,16 @@ def test_preview_persists_hidden_masks(client, auth_headers, db):
     assert photo.prepared_image_path.endswith("/prepared.png")
     assert photo.raw_mask_image_path.endswith("/raw-mask.png")
     assert photo.mask_image_path.endswith("/mask.png")
+
+
+def test_preview_reports_when_yolo_detects_no_car(client, auth_headers):
+    request = httpx.Request("POST", "http://fake-seg:8000/segment-photo")
+    response = httpx.Response(400, request=request, json={"detail": "No car is detected by the YOLO model."})
+    error = httpx.HTTPStatusError("No car detected", request=request, response=response)
+    with patch("app.routers.segmentation.proxy_service.forward_segment_photo", AsyncMock(side_effect=error)):
+        result = client.post("/edit-photo/preview", files={"file": ("car.png", FAKE_IMAGE, "image/png")}, data={"prompt": "red", "edit_car": "true"}, headers=auth_headers)
+    assert result.status_code == 400
+    assert result.json()["detail"] == "No car is detected by the YOLO model."
 
 
 def test_generate_completes_preview(client, auth_headers, user_and_token, db, make_photo):
