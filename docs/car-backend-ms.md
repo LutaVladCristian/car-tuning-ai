@@ -4,7 +4,7 @@ FastAPI gateway service: Firebase auth, upload validation, Cloud Firestore photo
 
 **Conda env:** `car-backend-ms` (Python 3.12, no ML deps)
 **Port:** 8001 locally; Cloud Run uses the injected `PORT` value.
-**Config:** `pydantic-settings` reads `../.env` from the repo root.
+**Config:** `pydantic-settings` reads `../.env` from the repo root. Set `FIRESTORE_DATABASE_ID` if you use a named Firestore database instead of `(default)`.
 
 ## Commands
 

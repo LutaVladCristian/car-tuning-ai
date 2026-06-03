@@ -19,6 +19,8 @@ cp .env.example .env
 
 Edit `.env` at the repo root. See `.env.example` for all required variables and descriptions.
 
+If you created a named Firestore database instead of `(default)`, set `FIRESTORE_DATABASE_ID` to that database id so the backend points at the right metadata store.
+
 ## Model Weights
 
 Download and place the following files under `car-segmentation-ms/model/` for local development:
