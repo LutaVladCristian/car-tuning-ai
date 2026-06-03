@@ -1,5 +1,6 @@
 import struct
 import time
+from dataclasses import dataclass
 from io import BytesIO
 
 import httpx
@@ -26,6 +27,15 @@ _MAX_PROMPT_LEN = 1000
 _ALLOWED_OUTPUT_SIZES = {"auto", "1024x1024", "1024x1536", "1536x1024"}
 _RATE_LIMIT_WINDOW_SECONDS = 60 * 60
 _edit_timestamps_by_uid: dict[str, list[float]] = {}
+
+
+@dataclass(frozen=True)
+class ValidatedUpload:
+    content: bytes
+    image_format: str
+    mime_type: str
+    width: int
+    height: int
 
 
 def _jpeg_dimensions(content: bytes) -> tuple[int, int] | None:
@@ -80,15 +90,36 @@ def _webp_dimensions(content: bytes) -> tuple[int, int] | None:
     return None
 
 
-def _check_file(content: bytes) -> None:
+def _validate_upload_image(content: bytes) -> ValidatedUpload:
     if len(content) > _MAX_FILE_BYTES:
         raise HTTPException(status_code=413, detail="File too large. Maximum size is 10 MB.")
-    dimensions = _png_dimensions(content) or _jpeg_dimensions(content) or _webp_dimensions(content)
-    if dimensions is None:
+    png_dimensions = _png_dimensions(content)
+    jpeg_dimensions = _jpeg_dimensions(content)
+    webp_dimensions = _webp_dimensions(content)
+    if png_dimensions is not None:
+        image_format = "png"
+        mime_type = "image/png"
+        dimensions = png_dimensions
+    elif jpeg_dimensions is not None:
+        image_format = "jpeg"
+        mime_type = "image/jpeg"
+        dimensions = jpeg_dimensions
+    elif webp_dimensions is not None:
+        image_format = "webp"
+        mime_type = "image/webp"
+        dimensions = webp_dimensions
+    else:
         raise HTTPException(status_code=415, detail="Unsupported or invalid image file. Upload a JPEG, PNG, or WEBP file.")
     width, height = dimensions
     if width < 1 or height < 1 or width > _MAX_IMAGE_DIMENSION or height > _MAX_IMAGE_DIMENSION or width * height > _MAX_IMAGE_PIXELS:
         raise HTTPException(status_code=413, detail=f"Image dimensions are too large. Maximum is {_MAX_IMAGE_DIMENSION}px per side and {_MAX_IMAGE_PIXELS} pixels total.")
+    return ValidatedUpload(
+        content=content,
+        image_format=image_format,
+        mime_type=mime_type,
+        width=width,
+        height=height,
+    )
 
 
 def _validate_edit_params(prompt: str, size: str) -> tuple[str, str]:
@@ -152,8 +183,7 @@ async def preview_edit_photo(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, int]:
-    content = await file.read()
-    _check_file(content)
+    upload = _validate_upload_image(await file.read())
     prompt, size = _validate_edit_params(prompt, size)
     _check_edit_rate_limit(current_user.firebase_uid)
 
@@ -162,7 +192,13 @@ async def preview_edit_photo(
     db.commit()
 
     try:
-        prepared, raw_mask, mask = await proxy_service.forward_segment_photo(content, file.filename or "image.jpg", edit_car, size)
+        prepared, raw_mask, mask = await proxy_service.forward_segment_photo(
+            upload.content,
+            file.filename or f"image.{upload.image_format}",
+            upload.mime_type,
+            edit_car,
+            size,
+        )
     except (httpx.HTTPStatusError, httpx.RequestError, ValueError) as exc:
         raise _proxy_error(exc)
 
@@ -170,7 +206,7 @@ async def preview_edit_photo(
     photo = Photo(
         user_id=current_user.id,
         original_filename=file.filename or "image.jpg",
-        original_image_path=storage_service.upload_photo(uid, "original", content),
+        original_image_path=storage_service.upload_photo(uid, "original", upload.content),
         prepared_image_path=storage_service.upload_photo(uid, "prepared", prepared),
         raw_mask_image_path=storage_service.upload_photo(uid, "raw-mask", raw_mask),
         mask_image_path=storage_service.upload_photo(uid, "mask", mask),

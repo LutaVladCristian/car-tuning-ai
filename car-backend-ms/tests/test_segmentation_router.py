@@ -4,6 +4,14 @@ import httpx
 
 from app.db.models.photo import Photo, PhotoStatus
 
+FAKE_JPEG = (
+    b"\xff\xd8\xff\xc0\x00\x11\x08\x00\x01\x00\x01\x03\x01\x11\x00"
+    b"\x02\x11\x00\x03\x11\x00\xff\xd9"
+)
+FAKE_WEBP = (
+    b"RIFF\x1a\x00\x00\x00WEBPVP8X\x0a\x00\x00\x00"
+    b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+)
 FAKE_IMAGE = (
     b"\x89PNG\r\n\x1a\n"
     b"\x00\x00\x00\rIHDR"
@@ -27,6 +35,38 @@ def test_preview_persists_hidden_masks(client, auth_headers, db):
     assert photo.prepared_image_path.endswith("/prepared.png")
     assert photo.raw_mask_image_path.endswith("/raw-mask.png")
     assert photo.mask_image_path.endswith("/mask.png")
+
+
+def test_preview_accepts_jpeg_png_and_webp(client, auth_headers):
+    with patch("app.routers.segmentation.proxy_service.forward_segment_photo", AsyncMock(return_value=(FAKE_PNG, FAKE_PNG, FAKE_PNG))), _uploads(), patch("app.routers.segmentation.storage_service.delete_photo"):
+        jpeg = client.post("/edit-photo/preview", files={"file": ("car.jpg", FAKE_JPEG, "image/jpeg")}, data={"prompt": "red", "edit_car": "true"}, headers=auth_headers)
+        png = client.post("/edit-photo/preview", files={"file": ("car.png", FAKE_IMAGE, "image/png")}, data={"prompt": "red", "edit_car": "true"}, headers=auth_headers)
+        webp = client.post("/edit-photo/preview", files={"file": ("car.webp", FAKE_WEBP, "image/webp")}, data={"prompt": "red", "edit_car": "true"}, headers=auth_headers)
+    assert jpeg.status_code == 200
+    assert png.status_code == 200
+    assert webp.status_code == 200
+
+
+def test_preview_rejects_files_over_10mb(client, auth_headers):
+    response = client.post(
+        "/edit-photo/preview",
+        files={"file": ("car.png", b"x" * ((10 * 1024 * 1024) + 1), "image/png")},
+        data={"prompt": "red", "edit_car": "true"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 413
+    assert response.json()["detail"] == "File too large. Maximum size is 10 MB."
+
+
+def test_preview_rejects_unsupported_image_format(client, auth_headers):
+    response = client.post(
+        "/edit-photo/preview",
+        files={"file": ("car.gif", b"GIF89a", "image/gif")},
+        data={"prompt": "red", "edit_car": "true"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 415
+    assert response.json()["detail"] == "Unsupported or invalid image file. Upload a JPEG, PNG, or WEBP file."
 
 
 def test_preview_reports_when_yolo_detects_no_car(client, auth_headers):

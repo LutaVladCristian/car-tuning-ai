@@ -23,7 +23,8 @@ export default function ImageSelector({
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [sizeError, setSizeError] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const ACCEPTED_FILE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
   // H10: Derive the blob URL from uploadedFile so it is only created once per
   // file. A cleanup effect revokes the URL whenever it changes or the component
@@ -40,12 +41,15 @@ export default function ImageSelector({
   const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
   const handleFile = (file: File) => {
-    if (!file.type.startsWith('image/')) return;
-    if (file.size > MAX_FILE_BYTES) {
-      setSizeError('File is too large. Maximum size is 10 MB.');
+    if (!ACCEPTED_FILE_TYPES.includes(file.type)) {
+      setUploadError('Unsupported image format. Upload a JPEG, PNG, or WEBP file.');
       return;
     }
-    setSizeError(null);
+    if (file.size > MAX_FILE_BYTES) {
+      setUploadError('File is too large. Maximum size is 10 MB.');
+      return;
+    }
+    setUploadError(null);
     onFileUpload(file);
   };
 
@@ -91,8 +95,8 @@ export default function ImageSelector({
         </button>
       </div>
 
-      {sizeError && (
-        <p className="text-red-400 text-xs">{sizeError}</p>
+      {uploadError && (
+        <p className="text-red-400 text-xs">{uploadError}</p>
       )}
 
       {imageSource === 'upload' && (
@@ -110,7 +114,7 @@ export default function ImageSelector({
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/png,image/jpeg,image/webp"
             className="hidden"
             onChange={handleChange}
           />

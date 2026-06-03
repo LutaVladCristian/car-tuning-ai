@@ -28,8 +28,9 @@ async def test_forward_segment_photo_returns_three_images():
     with patch("app.services.proxy_service._auth_headers", AsyncMock(return_value={})), patch(
         "app.services.proxy_service.httpx.AsyncClient", return_value=ctx
     ):
-        assert await forward_segment_photo(b"img", "car.jpg", True, "auto") == (FAKE, FAKE, FAKE)
+        assert await forward_segment_photo(b"img", "car.jpg", "image/jpeg", True, "auto") == (FAKE, FAKE, FAKE)
     assert client.post.call_args.kwargs["data"]["edit_car"] == "true"
+    assert client.post.call_args.kwargs["files"]["file"] == ("car.jpg", b"img", "image/jpeg")
 
 
 @pytest.mark.asyncio
