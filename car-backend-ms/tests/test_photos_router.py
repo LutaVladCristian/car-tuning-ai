@@ -1,6 +1,7 @@
+from dataclasses import replace
 from unittest.mock import patch
 
-from app.db.models.photo import OperationType
+from app.domain import OperationType
 
 
 class TestListPhotos:
@@ -26,7 +27,7 @@ class TestListPhotos:
         assert len(body["photos"]) == 2
 
     def test_excludes_unapproved_previews(self, client, auth_headers, user_and_token, make_photo):
-        from app.db.models.photo import PhotoStatus
+        from app.domain import PhotoStatus
 
         user, _ = user_and_token
         make_photo(user, status=PhotoStatus.preview)
@@ -65,10 +66,10 @@ class TestListPhotos:
 
 
 class TestDownloadPhoto:
-    def test_returns_raw_mask(self, client, auth_headers, user_and_token, make_photo):
+    def test_returns_raw_mask(self, client, auth_headers, user_and_token, store, make_photo):
         user, _ = user_and_token
         photo = make_photo(user)
-        photo.raw_mask_image_path = "raw-mask"
+        store._photos[user.firebase_uid][photo.id] = replace(photo, raw_mask_image_path="raw-mask")
         with patch("app.routers.photos.storage_service.download_photo", return_value=b"raw"):
             resp = client.get(f"/photos/{photo.id}/mask/raw", headers=auth_headers)
         assert resp.status_code == 200

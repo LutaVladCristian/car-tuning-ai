@@ -1,18 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException
 from firebase_admin.exceptions import FirebaseError
-from sqlalchemy.orm import Session
 
 from app.core.security import verify_firebase_token
-from app.db.models.user import User
 from app.schemas.auth import FirebaseAuthRequest, UserResponse
-from dependencies import get_db
+from app.services.photo_store import AbstractPhotoStore
+from dependencies import get_store
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/firebase", response_model=UserResponse)
 async def firebase_auth(
-    payload: FirebaseAuthRequest, db: Session = Depends(get_db)
+    payload: FirebaseAuthRequest, store: AbstractPhotoStore = Depends(get_store)
 ) -> UserResponse:
     """Exchange a Firebase ID token for a synced backend user record."""
     try:
@@ -26,15 +25,4 @@ async def firebase_auth(
         raise HTTPException(status_code=400, detail="Firebase token is missing an email claim")
     display_name: str | None = claims.get("name")
 
-    user = db.query(User).filter(User.firebase_uid == uid).first()
-    if user is None:
-        user = User(firebase_uid=uid, email=email, display_name=display_name)
-        db.add(user)
-    else:
-        # Keep email and display name in sync with Firebase.
-        user.email = email
-        user.display_name = display_name
-
-    db.commit()
-    db.refresh(user)
-    return user
+    return store.sync_user(uid, email, display_name)

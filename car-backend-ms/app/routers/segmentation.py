@@ -6,13 +6,12 @@ from io import BytesIO
 import httpx
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
 
-from app.db.models.photo import OperationType, Photo, PhotoStatus
-from app.db.models.user import User
+from app.domain import PhotoRecord, PhotoStatus, UserRecord
 from app.services import proxy_service, storage_service
+from app.services.photo_store import AbstractPhotoStore, PhotoConflictError
 from config import get_settings
-from dependencies import get_current_user, get_db
+from dependencies import get_current_user, get_store
 
 router = APIRouter(tags=["segmentation"])
 
@@ -161,17 +160,17 @@ def _proxy_error(exc: Exception) -> HTTPException:
     return HTTPException(status_code=502, detail="Segmentation service returned an invalid response.")
 
 
-def _owned_photo(photo_id: int, current_user: User, db: Session) -> Photo:
-    photo = db.query(Photo).filter(Photo.id == photo_id, Photo.user_id == current_user.id).first()
+def _owned_photo(photo_id: int, current_user: UserRecord, store: AbstractPhotoStore) -> PhotoRecord:
+    photo = store.get_owned_photo(current_user.firebase_uid, photo_id)
     if photo is None:
         raise HTTPException(status_code=404, detail="Photo not found")
     return photo
 
 
-def _delete_preview(photo: Photo, db: Session) -> None:
+def _delete_preview(photo: PhotoRecord, current_user: UserRecord, store: AbstractPhotoStore) -> None:
     for path in (photo.original_image_path, photo.prepared_image_path, photo.raw_mask_image_path, photo.mask_image_path):
         storage_service.delete_photo(path)
-    db.delete(photo)
+    store.delete_photo(current_user.firebase_uid, photo.id)
 
 
 @router.post("/edit-photo/preview")
@@ -180,16 +179,15 @@ async def preview_edit_photo(
     prompt: str = Form(...),
     edit_car: bool = Form(...),
     size: str = Form("auto"),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: UserRecord = Depends(get_current_user),
+    store: AbstractPhotoStore = Depends(get_store),
 ) -> dict[str, int]:
     upload = _validate_upload_image(await file.read())
     prompt, size = _validate_edit_params(prompt, size)
     _check_edit_rate_limit(current_user.firebase_uid)
 
-    for draft in db.query(Photo).filter(Photo.user_id == current_user.id, Photo.status == PhotoStatus.preview).all():
-        _delete_preview(draft, db)
-    db.commit()
+    for draft in store.list_preview_photos(current_user.firebase_uid):
+        _delete_preview(draft, current_user, store)
 
     try:
         prepared, raw_mask, mask = await proxy_service.forward_segment_photo(
@@ -203,50 +201,39 @@ async def preview_edit_photo(
         raise _proxy_error(exc)
 
     uid = current_user.firebase_uid
-    photo = Photo(
-        user_id=current_user.id,
+    photo = store.create_preview_photo(
+        current_user,
         original_filename=file.filename or "image.jpg",
         original_image_path=storage_service.upload_photo(uid, "original", upload.content),
         prepared_image_path=storage_service.upload_photo(uid, "prepared", prepared),
         raw_mask_image_path=storage_service.upload_photo(uid, "raw-mask", raw_mask),
         mask_image_path=storage_service.upload_photo(uid, "mask", mask),
-        operation_type=OperationType.edit_photo,
         operation_params={"prompt": prompt, "edit_car": edit_car, "size": size},
-        status=PhotoStatus.preview,
     )
-    db.add(photo)
-    db.commit()
-    db.refresh(photo)
     return {"photo_id": photo.id}
 
 
 @router.post("/edit-photo/{photo_id}/generate")
 async def generate_edit_photo(
     photo_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: UserRecord = Depends(get_current_user),
+    store: AbstractPhotoStore = Depends(get_store),
 ) -> StreamingResponse:
-    photo = _owned_photo(photo_id, current_user, db)
+    photo = _owned_photo(photo_id, current_user, store)
     if photo.status == PhotoStatus.completed and photo.result_image_path:
         return StreamingResponse(BytesIO(storage_service.download_photo(photo.result_image_path)), media_type="image/png")
     if photo.status != PhotoStatus.preview:
         raise HTTPException(status_code=409, detail="Photo preview is not ready for generation.")
 
-    claimed = (
-        db.query(Photo)
-        .filter(Photo.id == photo.id, Photo.status == PhotoStatus.preview)
-        .update({Photo.status: PhotoStatus.generating}, synchronize_session=False)
-    )
-    db.commit()
-    if claimed != 1:
+    try:
+        photo = store.claim_preview_for_generation(current_user.firebase_uid, photo.id)
+    except PhotoConflictError:
         raise HTTPException(status_code=409, detail="Photo preview is already being generated.")
-    db.refresh(photo)
     params = photo.operation_params or {}
     prompt = params.get("prompt")
     size = params.get("size")
     if not isinstance(prompt, str) or not isinstance(size, str):
-        photo.status = PhotoStatus.preview
-        db.commit()
+        store.mark_photo_preview(current_user.firebase_uid, photo.id)
         raise HTTPException(status_code=409, detail="Photo preview is missing generation parameters.")
     try:
         result = await proxy_service.forward_generate_photo(
@@ -256,24 +243,24 @@ async def generate_edit_photo(
             size,
         )
     except (httpx.HTTPStatusError, httpx.RequestError, ValueError) as exc:
-        photo.status = PhotoStatus.preview
-        db.commit()
+        store.mark_photo_preview(current_user.firebase_uid, photo.id)
         raise _proxy_error(exc)
 
-    photo.result_image_path = storage_service.upload_photo(current_user.firebase_uid, "result", result)
-    photo.status = PhotoStatus.completed
-    db.commit()
+    store.mark_photo_completed(
+        current_user.firebase_uid,
+        photo.id,
+        storage_service.upload_photo(current_user.firebase_uid, "result", result),
+    )
     return StreamingResponse(BytesIO(result), media_type="image/png")
 
 
 @router.delete("/edit-photo/{photo_id}/preview", status_code=204)
 async def delete_edit_preview(
     photo_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: UserRecord = Depends(get_current_user),
+    store: AbstractPhotoStore = Depends(get_store),
 ) -> None:
-    photo = _owned_photo(photo_id, current_user, db)
+    photo = _owned_photo(photo_id, current_user, store)
     if photo.status != PhotoStatus.preview:
         raise HTTPException(status_code=409, detail="Only unapproved previews can be deleted.")
-    _delete_preview(photo, db)
-    db.commit()
+    _delete_preview(photo, current_user, store)

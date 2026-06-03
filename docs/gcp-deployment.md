@@ -4,13 +4,13 @@
 
 | Service | Target | Notes |
 |---|---|---|
-| `car-backend-ms` | Cloud Run | Auth gateway, database migrations, Firebase Storage writes |
+| `car-backend-ms` | Cloud Run | Auth gateway, Firestore metadata access, Firebase Storage writes |
 | `car-segmentation-ms` | Cloud Run GPU | IAM-protected; downloads model weights from GCS at startup |
 | `car-frontend` | Firebase Hosting | SPA at `https://slick-tunes.web.app` |
-| PostgreSQL | Cloud SQL | Persistent metadata |
+| Metadata | Cloud Firestore | Serverless document store for users and photos |
 | Photos | Firebase Storage | Original, prepared, mask, and result PNG files |
 | Model weights | GCS bucket `car-tuning-ai-vision-models` | SAM ViT-H and YOLOv10n weights |
-| Secrets | Secret Manager | `OPENAI_API_KEY` and `DATABASE_URL` |
+| Secrets | Secret Manager | `OPENAI_API_KEY` |
 
 ## Firebase Storage
 
@@ -21,6 +21,17 @@ users/{firebase_uid}/photos/{uuid}/{role}.png
 ```
 
 Roles are `original`, `prepared`, `raw-mask`, `mask`, and `result`. Firebase rules deny client writes and allow authenticated users to read only their own files.
+
+## Firestore Metadata
+
+The backend stores lightweight metadata in Cloud Firestore:
+
+```text
+users/{firebase_uid}
+users/{firebase_uid}/photos/{photo_id}
+```
+
+User documents hold the stable backend `id` and a per-user `next_photo_id` counter. Photo documents hold status, prompt params, and Firebase Storage paths. Preview claiming uses a Firestore transaction to move a photo from `preview` to `generating`.
 
 ## Model Weight Bucket
 
@@ -79,18 +90,18 @@ The `5 x 24 = 120` second startup-probe window prevents traffic from reaching a 
 
 ## Deploy Backend
 
+Set `GIT_SHA` to the image tag you want to deploy, for example `export GIT_SHA=$(git rev-parse HEAD)`.
+
 ```bash
 gcloud run deploy car-backend-ms \
-  --image gcr.io/car-tuning-ai-494319/car-backend-ms \
+  --image gcr.io/car-tuning-ai-494319/car-backend-ms:${GIT_SHA} \
   --region europe-west1 \
   --service-account backend-ms-sa@car-tuning-ai-494319.iam.gserviceaccount.com \
-  --add-cloudsql-instances car-tuning-ai-494319:europe-west1:car-tuning-db \
-  --update-secrets DATABASE_URL=car-backend-db-url:latest \
   --set-env-vars "FIREBASE_PROJECT_ID=slick-tunes,FIREBASE_STORAGE_BUCKET=slick-tunes.firebasestorage.app,SEGMENTATION_MS_URL=https://car-segmentation-ms-130079365217.europe-west1.run.app,CORS_ORIGINS=[\"https://slick-tunes.web.app\"],REQUIRE_SEGMENTATION_IAM=true" \
   --allow-unauthenticated
 ```
 
-The backend service account needs `roles/run.invoker` on `car-segmentation-ms` and Cloud SQL access. The segmentation service account needs Secret Manager access for `OPENAI_API_KEY` and `roles/storage.objectViewer` on the model bucket.
+The backend service account needs `roles/run.invoker` on `car-segmentation-ms`, Firebase Storage access, and Firestore access such as `roles/datastore.user`. The segmentation service account needs Secret Manager access for `OPENAI_API_KEY` and `roles/storage.objectViewer` on the model bucket.
 
 ## Frontend And Workflow
 
@@ -111,7 +122,6 @@ conda run -n sam-microservice uvicorn server:app --host 0.0.0.0 --port 8000
 
 # Terminal 2
 cd car-backend-ms
-conda run -n car-backend-ms alembic upgrade head
 conda run -n car-backend-ms uvicorn main:app --host 0.0.0.0 --port 8001 --reload
 
 # Terminal 3
