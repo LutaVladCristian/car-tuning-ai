@@ -38,7 +38,7 @@ def test_preview_persists_hidden_masks(client, auth_headers, db):
 
 
 def test_preview_accepts_jpeg_png_and_webp(client, auth_headers):
-    with patch("app.routers.segmentation.proxy_service.forward_segment_photo", AsyncMock(return_value=(FAKE_PNG, FAKE_PNG, FAKE_PNG))), _uploads():
+    with patch("app.routers.segmentation.proxy_service.forward_segment_photo", AsyncMock(return_value=(FAKE_PNG, FAKE_PNG, FAKE_PNG))), _uploads(), patch("app.routers.segmentation.storage_service.delete_photo"):
         jpeg = client.post("/edit-photo/preview", files={"file": ("car.jpg", FAKE_JPEG, "image/jpeg")}, data={"prompt": "red", "edit_car": "true"}, headers=auth_headers)
         png = client.post("/edit-photo/preview", files={"file": ("car.png", FAKE_IMAGE, "image/png")}, data={"prompt": "red", "edit_car": "true"}, headers=auth_headers)
         webp = client.post("/edit-photo/preview", files={"file": ("car.webp", FAKE_WEBP, "image/webp")}, data={"prompt": "red", "edit_car": "true"}, headers=auth_headers)
