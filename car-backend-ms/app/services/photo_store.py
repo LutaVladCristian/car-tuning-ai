@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from firebase_admin import firestore
+from google.api_core import exceptions as gcloud_exceptions
 
 from app.core.security import _get_app
 from app.domain import OperationType, PhotoRecord, PhotoStatus, UserRecord
@@ -95,6 +96,30 @@ class FirestorePhotoStore(AbstractPhotoStore):
     def _photos(self, firebase_uid: str):
         return self._user_ref(firebase_uid).collection("photos")
 
+    def _run_transaction(self, callback):
+        transaction = self._client.transaction()
+        last_error: Exception | None = None
+
+        for _ in range(transaction._max_attempts):
+            try:
+                transaction._clean_up()
+                transaction._begin()
+                result = callback(transaction)
+                transaction._commit()
+                return result
+            except gcloud_exceptions.Aborted as exc:
+                last_error = exc
+                if transaction.in_progress:
+                    transaction._rollback()
+            except Exception:
+                if transaction.in_progress:
+                    transaction._rollback()
+                raise
+
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError("Firestore transaction did not complete.")
+
     def _user_from_data(self, data: dict[str, Any]) -> UserRecord:
         return UserRecord(
             id=int(data["id"]),
@@ -157,9 +182,7 @@ class FirestorePhotoStore(AbstractPhotoStore):
     def get_or_create_user(self, firebase_uid: str, email: str, display_name: str | None) -> UserRecord:
         user_ref = self._user_ref(firebase_uid)
         counters_ref = self._client.collection("_meta").document("counters")
-        transaction = self._client.transaction()
 
-        @firestore.transactional
         def _txn(transaction):
             snap = user_ref.get(transaction=transaction)
             if snap.exists:
@@ -189,7 +212,7 @@ class FirestorePhotoStore(AbstractPhotoStore):
             transaction.set(user_ref, self._user_payload(user, next_photo_id=0))
             return user
 
-        return _txn(transaction)
+        return self._run_transaction(_txn)
 
     def list_completed_photos(self, firebase_uid: str, skip: int, limit: int) -> tuple[list[PhotoRecord], int]:
         docs = self._photos(firebase_uid).order_by("created_at", direction=firestore.Query.DESCENDING).stream()
@@ -223,9 +246,7 @@ class FirestorePhotoStore(AbstractPhotoStore):
         operation_params: dict[str, Any],
     ) -> PhotoRecord:
         user_ref = self._user_ref(user.firebase_uid)
-        transaction = self._client.transaction()
 
-        @firestore.transactional
         def _txn(transaction):
             snap = user_ref.get(transaction=transaction)
             if not snap.exists:
@@ -250,13 +271,11 @@ class FirestorePhotoStore(AbstractPhotoStore):
             transaction.set(self._photos(user.firebase_uid).document(str(photo.id)), self._photo_payload(photo))
             return photo
 
-        return _txn(transaction)
+        return self._run_transaction(_txn)
 
     def claim_preview_for_generation(self, firebase_uid: str, photo_id: int) -> PhotoRecord:
         photo_ref = self._photos(firebase_uid).document(str(photo_id))
-        transaction = self._client.transaction()
 
-        @firestore.transactional
         def _txn(transaction):
             snap = photo_ref.get(transaction=transaction)
             if not snap.exists:
@@ -267,7 +286,7 @@ class FirestorePhotoStore(AbstractPhotoStore):
             transaction.update(photo_ref, {"status": PhotoStatus.generating.value})
             return replace(photo, status=PhotoStatus.generating)
 
-        return _txn(transaction)
+        return self._run_transaction(_txn)
 
     def mark_photo_completed(self, firebase_uid: str, photo_id: int, result_image_path: str) -> PhotoRecord:
         photo = self.get_owned_photo(firebase_uid, photo_id)
