@@ -51,14 +51,6 @@ cd car-frontend
 npm install
 ```
 
-### Run database migrations
-
-```bash
-conda activate car-backend-ms
-cd car-backend-ms
-alembic upgrade head
-```
-
 ## Tests
 
 Dev dependencies are included in the Conda environment files and `package.json`.
@@ -170,4 +162,4 @@ The app is available at **http://localhost:5173**.
 - `edit_car=true`: the closest car is transparent/editable and the background is protected.
 - `edit_car=false`: the background is transparent/editable and the closest car is protected.
 
-The frontend shows the raw SAM car mask and the OpenAI editable-area mask for confirmation before generation. The backend stores original, prepared, mask, and result image bytes in Firebase Storage and stores metadata plus Storage paths in PostgreSQL.
+The frontend shows the raw SAM car mask and the OpenAI editable-area mask for confirmation before generation. The backend stores original, prepared, mask, and result image bytes in Firebase Storage and stores metadata plus Storage paths in Cloud Firestore.

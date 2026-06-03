@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from app.db.models.photo import OperationType, PhotoStatus
+from app.domain import OperationType, PhotoStatus
 
 
 class PhotoResponse(BaseModel):

@@ -1,31 +1,19 @@
 import os
+from datetime import UTC, datetime
 from unittest.mock import patch
 
-os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+import pytest
+from fastapi.testclient import TestClient
+
 os.environ["FIREBASE_PROJECT_ID"] = "test-project"
 os.environ["FIREBASE_STORAGE_BUCKET"] = "test-project.firebasestorage.app"
 os.environ["SEGMENTATION_MS_URL"] = "http://fake-seg:8000"
 
-import pytest
-from fastapi.testclient import TestClient
 from main import app as fastapi_app
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-import app.db.models.photo  # noqa: F401
-import app.db.models.user  # noqa: F401
-from app.db.base import Base
-from app.db.models.photo import OperationType, Photo, PhotoStatus
-from app.db.models.user import User
-from dependencies import get_db
-
-_engine = create_engine(
-    "sqlite:///:memory:",
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-_TestingSession = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
+from app.domain import OperationType, PhotoRecord, PhotoStatus, UserRecord
+from app.services.photo_store import InMemoryPhotoStore
+from dependencies import get_store
 
 # Shared constants reused by individual test modules.
 FAKE_UID = "test-firebase-uid"
@@ -33,30 +21,18 @@ FAKE_TOKEN = "fake-firebase-id-token"
 FAKE_CLAIMS = {"uid": FAKE_UID, "email": "alice@example.com", "name": "Alice"}
 
 
-@pytest.fixture(autouse=True)
-def _reset_schema():
-    Base.metadata.create_all(bind=_engine)
-    yield
-    Base.metadata.drop_all(bind=_engine)
+@pytest.fixture()
+def store():
+    return InMemoryPhotoStore()
 
 
 @pytest.fixture()
-def db(_reset_schema):
-    session = _TestingSession()
+def client(store):
+    def _override_get_store():
+        return store
+
+    fastapi_app.dependency_overrides[get_store] = _override_get_store
     try:
-        yield session
-    finally:
-        session.close()
-
-
-@pytest.fixture()
-def client(db):
-    def _override_get_db():
-        yield db
-
-    fastapi_app.dependency_overrides[get_db] = _override_get_db
-    try:
-        # Patch the Firebase token verification so tests never hit Firebase.
         with patch("dependencies.verify_firebase_token", return_value=FAKE_CLAIMS):
             with TestClient(fastapi_app, raise_server_exceptions=True) as c:
                 yield c
@@ -65,13 +41,9 @@ def client(db):
 
 
 @pytest.fixture()
-def make_user(db):
+def make_user(store):
     def _factory(firebase_uid=FAKE_UID, email="alice@example.com", display_name="Alice"):
-        user = User(firebase_uid=firebase_uid, email=email, display_name=display_name)
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-        return user
+        return store.sync_user(firebase_uid, email, display_name)
 
     return _factory
 
@@ -89,28 +61,58 @@ def auth_headers(user_and_token):
 
 
 @pytest.fixture()
-def make_photo(db):
+def make_photo(store):
     def _factory(
-        user,
+        user: UserRecord,
         filename="car.jpg",
         operation_type=OperationType.edit_photo,
         original_image_path="gs://test-bucket/users/uid/photos/abc/original.png",
+        prepared_image_path=None,
         result_image_path="gs://test-bucket/users/uid/photos/abc/result.png",
+        raw_mask_image_path=None,
+        mask_image_path=None,
         status=PhotoStatus.completed,
         operation_params=None,
     ):
-        photo = Photo(
-            user_id=user.id,
+        prepared_path = (
+            "gs://test-bucket/users/uid/photos/abc/prepared.png"
+            if prepared_image_path is None
+            else prepared_image_path
+        )
+        raw_mask_path = (
+            "gs://test-bucket/users/uid/photos/abc/raw-mask.png"
+            if raw_mask_image_path is None and status is not PhotoStatus.completed
+            else raw_mask_image_path
+        )
+        mask_path = (
+            "gs://test-bucket/users/uid/photos/abc/mask.png"
+            if mask_image_path is None and status is not PhotoStatus.completed
+            else mask_image_path
+        )
+        created = store.create_preview_photo(
+            user,
             original_filename=filename,
             original_image_path=original_image_path,
+            prepared_image_path=prepared_path,
+            raw_mask_image_path=raw_mask_path,
+            mask_image_path=mask_path,
+            operation_params=operation_params or {},
+        )
+        photo = PhotoRecord(
+            id=created.id,
+            user_id=user.id,
+            original_filename=created.original_filename,
+            original_image_path=created.original_image_path,
+            prepared_image_path=created.prepared_image_path,
             result_image_path=result_image_path,
+            raw_mask_image_path=created.raw_mask_image_path,
+            mask_image_path=created.mask_image_path,
             status=status,
             operation_type=operation_type,
             operation_params=operation_params or {},
+            created_at=datetime.now(UTC),
         )
-        db.add(photo)
-        db.commit()
-        db.refresh(photo)
+        store._photos[user.firebase_uid][photo.id] = photo
         return photo
 
     return _factory
