@@ -73,7 +73,7 @@ def _decode_limited_b64(value: object, field_name: str) -> bytes:
 
 
 async def forward_segment_photo(
-    content: bytes, filename: str, edit_car: bool, size: str
+    content: bytes, filename: str, mime_type: str, edit_car: bool, size: str
 ) -> tuple[bytes, bytes, bytes]:
     settings = get_settings()
     base_url = settings.SEGMENTATION_MS_URL
@@ -83,7 +83,7 @@ async def forward_segment_photo(
     async with httpx.AsyncClient(timeout=180.0) as client:
         resp = await client.post(
             f"{base_url}/segment-photo",
-            files={"file": (filename, content, "image/jpeg")},
+            files={"file": (filename, content, mime_type)},
             data={"edit_car": str(edit_car).lower(), "size": size},
             headers=headers,
         )
