@@ -9,6 +9,7 @@ from firebase_admin import firestore
 
 from app.core.security import _get_app
 from app.domain import OperationType, PhotoRecord, PhotoStatus, UserRecord
+from config import get_settings
 
 
 def _utcnow() -> datetime:
@@ -78,7 +79,12 @@ class AbstractPhotoStore(ABC):
 
 class FirestorePhotoStore(AbstractPhotoStore):
     def __init__(self):
-        self._client = firestore.client(app=_get_app())
+        app = _get_app()
+        self._client = firestore.Client(
+            credentials=app.credential.get_credential(),
+            project=app.project_id,
+            database=get_settings().FIRESTORE_DATABASE_ID,
+        )
 
     def _users(self):
         return self._client.collection("users")

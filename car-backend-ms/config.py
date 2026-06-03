@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     FIREBASE_PROJECT_ID: str
     FIREBASE_STORAGE_BUCKET: str
+    FIRESTORE_DATABASE_ID: str = "(default)"
     SEGMENTATION_MS_URL: str = "http://localhost:8000"
     REQUIRE_SEGMENTATION_IAM: bool = False
     EDIT_PHOTO_RATE_LIMIT_PER_HOUR: int = 20

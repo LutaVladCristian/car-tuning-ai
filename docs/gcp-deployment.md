@@ -97,7 +97,7 @@ gcloud run deploy car-backend-ms \
   --image gcr.io/car-tuning-ai-494319/car-backend-ms:${GIT_SHA} \
   --region europe-west1 \
   --service-account backend-ms-sa@car-tuning-ai-494319.iam.gserviceaccount.com \
-  --set-env-vars "FIREBASE_PROJECT_ID=slick-tunes,FIREBASE_STORAGE_BUCKET=slick-tunes.firebasestorage.app,SEGMENTATION_MS_URL=https://car-segmentation-ms-130079365217.europe-west1.run.app,CORS_ORIGINS=[\"https://slick-tunes.web.app\"],REQUIRE_SEGMENTATION_IAM=true" \
+  --set-env-vars "FIREBASE_PROJECT_ID=slick-tunes,FIREBASE_STORAGE_BUCKET=slick-tunes.firebasestorage.app,FIRESTORE_DATABASE_ID=slick-tunes-db,SEGMENTATION_MS_URL=https://car-segmentation-ms-130079365217.europe-west1.run.app,CORS_ORIGINS=[\"https://slick-tunes.web.app\"],REQUIRE_SEGMENTATION_IAM=true" \
   --allow-unauthenticated
 ```
 
